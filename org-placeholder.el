@@ -267,7 +267,7 @@ arguments."
                                       (format " (%s)" (org-no-properties
                                                        (org-format-outline-path olp)))
                                       (propertize 'face 'font-lock-doc-face
-                                                  'marker (point-marker)))
+                                                  'org-marker (point-marker)))
                                     strings)))
                            ((= level target-level)
                             (beginning-of-line)
