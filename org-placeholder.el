@@ -17,6 +17,163 @@
 (defun org-placeholder--regexp-for-level (level)
   (rx-to-string `(and bol ,(make-string level ?\*) " ")))
 
+;;;; Find
+
+;;;###autoload
+(defun org-placeholder-find-or-create (&optional bookmark-name initial-input)
+  (interactive (list (when current-prefix-arg
+                       (org-placeholder-read-bookmark-name "Placeholder: "))))
+  (let (candidates
+        (node-parent-table (make-hash-table :test #'equal))
+        (node-group-table (make-hash-table :test #'equal))
+        (marker-table (make-hash-table :test #'equal))
+        (root-names (if bookmark-name
+                        (list bookmark-name)
+                      (mapcar #'car (org-placeholder--bookmarks)))))
+    (cl-labels
+        ((annotator (candidate)
+           (if-let (s (gethash candidate node-parent-table))
+               (concat " " s)
+             ""))
+         (group (candidate transform)
+           (if transform
+               candidate
+             (gethash candidate node-group-table)))
+         (completions (string pred action)
+           (if (eq action 'metadata)
+               (cons 'metadata
+                     (list (cons 'category 'org-placeholder-item)
+                           (cons 'annotation-function #'annotator)
+                           (cons 'group-function #'group)))
+             (complete-with-action action candidates string pred))))
+      (dolist (root-name root-names)
+        (pcase-exhaustive (org-placeholder--view-args root-name)
+          (`(,root ,type)
+           (save-current-buffer
+             (org-with-point-at root
+               (org-with-wide-buffer
+                (let* ((root-level (org-outline-level))
+                       (end-of-root (save-excursion (org-end-of-subtree)))
+                       (regexp1 (org-placeholder--regexp-for-level (1+ root-level))))
+                  (pcase-exhaustive type
+                    (`nested
+                     (while (re-search-forward regexp1 end-of-root t)
+                       (let ((group-heading (org-no-properties (org-get-heading t t t t)))
+                             (bound (save-excursion (org-end-of-subtree)))
+                             (target-level (+ root-level
+                                              2
+                                              (if-let (str (org-entry-get nil "PLACEHOLDER_LEVEL"))
+                                                  (string-to-number str)
+                                                0)))
+                             (olp-string nil))
+                         (while (re-search-forward org-complex-heading-regexp bound t)
+                           (unless (save-match-data (org-in-archived-heading-p))
+                             (let* ((level (- (match-end 1)
+                                              (match-beginning 1)))
+                                    (marker (copy-marker (match-beginning 0)))
+                                    (heading (org-link-display-format
+                                              (match-string-no-properties 4))))
+                               (cond
+                                ((< level target-level)
+                                 (let ((olp (org-get-outline-path t t)))
+                                   (setq olp-string
+                                         (org-no-properties
+                                          (org-format-outline-path
+                                           (seq-drop olp (1+ root-level)))))))
+                                ((= level target-level)
+                                 (push heading candidates)
+                                 (puthash heading olp-string node-parent-table)
+                                 (puthash heading
+                                          (if bookmark-name
+                                              group-heading
+                                            (format "%s: %s" root-name group-heading))
+                                          node-group-table)
+                                 (puthash heading marker marker-table)))))))))))))))))
+      (let ((input (or (and initial-input
+                            (car (member-ignore-case initial-input candidates)))
+                       (completing-read "Find a node: " #'completions nil nil
+                                        initial-input))))
+        (if-let (marker (gethash input marker-table))
+            (with-current-buffer (marker-buffer marker)
+              (pop-to-buffer (current-buffer))
+              (goto-char marker)
+              (run-hooks 'org-ql-find-goto-hook))
+          (org-placeholder-capture-input input bookmark-name))))))
+
+(defun org-placeholder-capture-input (input &optional bookmark-names)
+  (let ((root-name-map (make-hash-table :test #'equal))
+        (marker-map (make-hash-table :test #'equal))
+        candidates)
+    (cl-labels
+        ((group (candidate transform)
+           (if transform
+               candidate
+             (gethash candidate root-name-map)))
+         (completions (string pred action)
+           (if (eq action 'metadata)
+               (cons 'metadata
+                     (list (cons 'category 'category)
+                           (cons 'group-function #'group)))
+             (complete-with-action action candidates string pred)))
+         (add-parent (root-name root-level)
+           (let ((candidate (org-no-properties
+                             (org-format-outline-path
+                              (seq-drop (org-get-outline-path t t)
+                                        root-level)))))
+             (push candidate candidates)
+             (puthash candidate root-name root-name-map)
+             (puthash candidate (point-marker) marker-map))))
+      (dolist (bookmark (or (if (stringp bookmark-names)
+                                (list bookmark-names)
+                              bookmark-names)
+                            (mapcar #'car (org-placeholder--bookmarks))))
+        (org-placeholder-map-parents bookmark
+          (apply-partially #'add-parent bookmark)))
+      (let* ((parent (completing-read (format "Add \"%s\": " input)
+                                      #'completions))
+             (marker (gethash parent marker-map))
+             (org-capture-initial input)
+             (root-name (gethash parent root-name-map))
+             (template (cdr (assq 'org-placeholder-capture-template
+                                  (bookmark-get-bookmark-record root-name))))
+             (org-capture-entry `("" ""
+                                  entry
+                                  (function
+                                   (lambda ()
+                                     (org-goto-marker-or-bmk ,marker)))
+                                  ,(or template "* %i\n%?"))))
+        (org-capture)))))
+
+(defun org-placeholder-map-parents (bookmark-name fn)
+  "Call a function at each parent heading of the items."
+  (declare (indent 1))
+  (pcase-exhaustive (org-placeholder--view-args bookmark-name)
+    (`(,root ,type)
+     (save-current-buffer
+       (org-with-point-at root
+         (org-with-wide-buffer
+          (let* ((root-level (org-outline-level))
+                 (end-of-root (save-excursion (org-end-of-subtree)))
+                 (regexp1 (org-placeholder--regexp-for-level (1+ root-level))))
+            (pcase-exhaustive type
+              (`nested
+               (while (re-search-forward regexp1 end-of-root t)
+                 (let ((group-heading (org-no-properties (org-get-heading t t t t)))
+                       (bound (save-excursion (org-end-of-subtree))))
+                   (if-let (str (org-entry-get nil "PLACEHOLDER_LEVEL"))
+                       (let ((target-level (+ root-level
+                                              2 (string-to-number str))))
+                         (while (re-search-forward org-complex-heading-regexp bound t)
+                           (when (and (= (1- target-level)
+                                         (- (match-end 1) (match-beginning 1)))
+                                      (not (org-in-archived-heading-p)))
+                             (save-excursion
+                               (beginning-of-line)
+                               (funcall fn root-level)))))
+                     (save-excursion
+                       (beginning-of-line)
+                       (funcall fn root-level))))))))))))))
+
 ;;;; Views like what org-ql-view provides
 
 (defvar org-placeholder-view-name nil)
