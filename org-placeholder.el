@@ -219,7 +219,6 @@ arguments."
 (defun org-placeholder--insert-view (root type)
   (cl-check-type root marker)
   (require 'org-ql-view)
-  (require 'org-super-agenda)
   (let (strings)
     (save-current-buffer
       (org-with-point-at root
