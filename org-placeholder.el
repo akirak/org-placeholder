@@ -34,6 +34,9 @@
 (require 'bookmark)
 (require 'org)
 
+(defvar org-capture-entry)
+(defvar org-capture-initial)
+
 (defgroup org-placeholder nil
   ""
   :group 'org)
