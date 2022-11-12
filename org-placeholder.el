@@ -248,7 +248,6 @@ arguments."
                                                  items
                                                  (seq-sort (or org-placeholder-sort-function
                                                                #'ignore))
-                                                 (nreverse)
                                                  (mapcar #'org-ql-view--format-element))
                                                strings))
                          (if first-section
@@ -298,19 +297,19 @@ arguments."
   (or (let ((ta (org-placeholder-keyword-order a))
             (tb (org-placeholder-keyword-order b)))
         (if (and ta tb)
-            (> ta tb)
+            (< ta tb)
           tb))
       (let ((sa (org-element-property :scheduled a))
             (sb (org-element-property :scheduled b)))
         (if (and sa sb)
-            (time-less-p (org-timestamp-to-time sa)
-                         (org-timestamp-to-time sb))
-          sa))
+            (time-less-p (org-timestamp-to-time sb)
+                         (org-timestamp-to-time sa))
+          sb))
       (let ((pa (org-element-property :priority a))
             (pb (org-element-property :priority b)))
         (if (and pa pb)
-            (< pa pb)
-          pa))))
+            (> pa pb)
+          pb))))
 
 (provide 'org-placeholder)
 ;;; org-placeholder.el ends here
