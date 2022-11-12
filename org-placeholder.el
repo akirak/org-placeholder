@@ -3,6 +3,18 @@
 (require 'bookmark)
 (require 'org)
 
+(defgroup org-placeholder nil
+  ""
+  :group 'org)
+
+(defcustom org-placeholder-sort-function
+  #'org-placeholder-default-sort
+  "Function used to sort entries in `org-placeholder-view'.
+
+It takes a function that takes two Org headline elements as
+arguments."
+  :type 'function)
+
 ;;;; Common
 
 (defun org-placeholder-read-bookmark-name (prompt)
@@ -230,13 +242,13 @@
                                          0)))
                       (first-section t)
                       items)
-                  (cl-flet*
-                      ((sort-element-pred (a b)
-                         t)
-                       (emit (&optional no-empty-line)
+                  (cl-flet
+                      ((emit (&optional no-empty-line)
                          (setq strings (append (thread-last
                                                  items
-                                                 (seq-sort #'sort-element-pred)
+                                                 (seq-sort (or org-placeholder-sort-function
+                                                               #'ignore))
+                                                 (nreverse)
                                                  (mapcar #'org-ql-view--format-element))
                                                strings))
                          (if first-section
@@ -266,6 +278,39 @@
                     (emit t)))
                 (push "" strings))))))))
     (insert (string-join (nreverse strings) "\n"))))
+
+;;;; Default sorting function
+
+(defvar org-placeholder-keyword-order nil)
+
+(defun org-placeholder-keyword-order (element)
+  (when-let (kwd (org-element-property :todo-keyword element))
+    (or (cdr (assoc kwd org-placeholder-keyword-order))
+        (let ((order (with-current-buffer
+                         (marker-buffer (or (org-element-property :org-marker element)
+                                            (org-element-property :org-hd-marker element)))
+                       (seq-position org-todo-keywords-1 kwd #'equal))))
+          (push (cons kwd order)
+                org-placeholder-keyword-order)
+          order))))
+
+(defun org-placeholder-default-sort (a b)
+  (or (let ((ta (org-placeholder-keyword-order a))
+            (tb (org-placeholder-keyword-order b)))
+        (if (and ta tb)
+            (> ta tb)
+          tb))
+      (let ((sa (org-element-property :scheduled a))
+            (sb (org-element-property :scheduled b)))
+        (if (and sa sb)
+            (time-less-p (org-timestamp-to-time sa)
+                         (org-timestamp-to-time sb))
+          sa))
+      (let ((pa (org-element-property :priority a))
+            (pb (org-element-property :priority b)))
+        (if (and pa pb)
+            (< pa pb)
+          pa))))
 
 (provide 'org-placeholder)
 ;;; org-placeholder.el ends here
