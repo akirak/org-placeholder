@@ -143,6 +143,15 @@ arguments."
               (run-hooks 'org-ql-find-goto-hook))
           (org-placeholder-capture-input input bookmark-name))))))
 
+;;;###autoload
+(defun org-placeholder-find-or-create-1 (name)
+  "Find or create NAME from all placeholders.
+
+This is an alternative API to `org-placeholder-find-or-create'
+which is suitable for integration with embark package."
+  (interactive "s")
+  (org-placeholder-find-or-create nil name))
+
 (defun org-placeholder-capture-input (input &optional bookmark-names)
   (let ((root-name-map (make-hash-table :test #'equal))
         (marker-map (make-hash-table :test #'equal))
