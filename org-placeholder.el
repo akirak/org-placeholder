@@ -155,7 +155,10 @@ which is suitable for integration with embark package."
   (interactive "s")
   (org-placeholder-find-or-create nil name))
 
+;;;###autoload
 (defun org-placeholder-capture-input (input &optional bookmark-names)
+  "Create a heading into a placeholder."
+  (interactive "s")
   (let ((root-name-map (make-hash-table :test #'equal))
         (marker-map (make-hash-table :test #'equal))
         candidates)
