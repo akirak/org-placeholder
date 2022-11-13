@@ -233,6 +233,7 @@ which is suitable for integration with embark package."
 
 (defvar org-placeholder-view-name nil)
 
+;;;###autoload
 (defun org-placeholder-view (bookmark-name)
   (interactive (list (org-placeholder-read-bookmark-name "View: ")))
   (cl-assert (org-placeholder--view-args bookmark-name))
