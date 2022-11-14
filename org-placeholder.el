@@ -52,16 +52,43 @@ arguments."
 ;;;; Common
 
 (defun org-placeholder-read-bookmark-name (prompt)
-  (completing-read prompt (org-placeholder--bookmarks) nil t))
+  (let ((completion-ignore-case t))
+    (completing-read prompt (org-placeholder--bookmarks) nil t)))
 
 (defun org-placeholder--bookmarks ()
   (bookmark-maybe-load-default-file)
-  (seq-filter (pcase-lambda (`(,_ . ,alist))
-                (assq 'org-placeholder alist))
+  (seq-filter (lambda (record)
+                (eq (bookmark-get-handler record)
+                    'org-placeholder-view))
               bookmark-alist))
 
 (defun org-placeholder--regexp-for-level (level)
   (rx-to-string `(and bol ,(make-string level ?\*) " ")))
+
+;;;; Creating a placeholder bookmark
+
+;;;###autoload
+(defun org-placeholder-store-bookmark ()
+  "Store a bookmark to a view of the current subtree."
+  (interactive)
+  (let* ((filename (thread-last
+                     (org-base-buffer (current-buffer))
+                     (buffer-file-name)
+                     (abbreviate-file-name)))
+         (heading (org-get-heading t t t t))
+         (bookmark-name (read-from-minibuffer "Bookmark name: "
+                                              (format "%s:%s" filename heading)))
+         (org-bookmark-heading-make-ids t)
+         (id (org-id-get-create))
+         (point (point-marker))
+         (record (with-current-buffer (org-base-buffer (current-buffer))
+                   (org-with-wide-buffer
+                    (goto-char point)
+                    (bookmark-make-record-default)))))
+    (bookmark-prop-set record 'id id)
+    (bookmark-prop-set record 'handler #'org-placeholder-view)
+    (bookmark-store bookmark-name record t)
+    (bookmark-save)))
 
 ;;;; Find
 
@@ -237,15 +264,18 @@ which is suitable for integration with embark package."
 (defvar org-placeholder-view-name nil)
 
 ;;;###autoload
-(defun org-placeholder-view (bookmark-name)
+(defun org-placeholder-view (bookmark)
   (interactive (list (org-placeholder-read-bookmark-name "View: ")))
-  (cl-assert (org-placeholder--view-args bookmark-name))
-  (with-current-buffer (get-buffer-create (format "*View<%s>*" bookmark-name))
-    ;; (read-only-mode t)
-    (org-agenda-mode)
-    (setq-local org-placeholder-view-name bookmark-name)
-    (local-set-key "g" #'org-placeholder-revert-view)
-    (org-placeholder-revert-view)))
+  (cl-assert (bookmark-get-bookmark-record bookmark))
+  (let ((bookmark-name (if (stringp bookmark)
+                           bookmark
+                         (car bookmark))))
+    (with-current-buffer (get-buffer-create (format "*View<%s>*" bookmark-name))
+      (read-only-mode t)
+      (org-agenda-mode)
+      (setq-local org-placeholder-view-name bookmark-name)
+      (local-set-key "g" #'org-placeholder-revert-view)
+      (org-placeholder-revert-view))))
 
 (defun org-placeholder-revert-view (&rest _args)
   (interactive)
@@ -259,11 +289,15 @@ which is suitable for integration with embark package."
 
 (defun org-placeholder--view-args (bookmark-name)
   (if-let* ((record (bookmark-get-bookmark-record bookmark-name))
-            (type (cdr (assq 'org-placeholder record)))
             (id (cdr (assq 'id record)))
-            (marker (org-id-find id 'marker)))
+            (marker (org-id-find id 'marker))
+            (type (pcase-exhaustive (org-entry-get marker "PLACEHOLDER_TYPE")
+                    ;; (`nil
+                    ;;  t)
+                    ("nested"
+                     'nested))))
       (list marker type)
-    (error "Either a record, type, id, or marker is missing")))
+    (error "Either a bookmark record, id, or marker is missing")))
 
 (defun org-placeholder--insert-view (root type)
   (cl-check-type root marker)
