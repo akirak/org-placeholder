@@ -267,15 +267,20 @@ which is suitable for integration with embark package."
 (defun org-placeholder-view (bookmark)
   (interactive (list (org-placeholder-read-bookmark-name "View: ")))
   (cl-assert (bookmark-get-bookmark-record bookmark))
-  (let ((bookmark-name (if (stringp bookmark)
-                           bookmark
-                         (car bookmark))))
-    (with-current-buffer (get-buffer-create (format "*View<%s>*" bookmark-name))
+  (let* ((bookmark-name (if (stringp bookmark)
+                            bookmark
+                          (car bookmark)))
+         (buffer (get-buffer-create (format "*View<%s>*" bookmark-name))))
+    (with-current-buffer buffer
       (read-only-mode t)
       (org-agenda-mode)
       (setq-local org-placeholder-view-name bookmark-name)
       (local-set-key "g" #'org-placeholder-revert-view)
-      (org-placeholder-revert-view))))
+      (org-placeholder-revert-view))
+    (funcall (if (eq this-command 'org-placeholder-view)
+                 #'pop-to-buffer
+               #'pop-to-buffer-same-window)
+             buffer)))
 
 (defun org-placeholder-revert-view (&rest _args)
   (interactive)
@@ -283,7 +288,6 @@ which is suitable for integration with embark package."
         (args (org-placeholder--view-args org-placeholder-view-name)))
     (erase-buffer)
     (apply #'org-placeholder--insert-view args)
-    (pop-to-buffer (current-buffer))
     (org-agenda-finalize)
     (goto-char (point-min))))
 
