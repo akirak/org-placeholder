@@ -219,21 +219,38 @@ which is suitable for integration with embark package."
                             (mapcar #'car (org-placeholder--bookmarks))))
         (org-placeholder-map-parents bookmark
           (apply-partially #'add-parent bookmark)))
-      (let* ((parent (completing-read (format "Add \"%s\": " input)
-                                      #'completions))
-             (marker (gethash parent marker-map))
-             (org-capture-initial input)
-             (root-name (gethash parent root-name-map))
-             (template (org-entry-get marker "PLACEHOLDER_CAPTURE_TEMPLATE" t))
-             (org-capture-entry `("" ""
-                                  entry
-                                  (function
-                                   (lambda ()
-                                     (org-goto-marker-or-bmk ,marker)))
-                                  ,(if template
-                                       (read template)
-                                     org-placeholder-default-capture-template))))
-        (org-capture)))))
+      (thread-first
+        (completing-read (format "Add \"%s\": " input)
+                         #'completions)
+        (gethash marker-map)
+        (org-placeholder--capture input)))))
+
+(defun org-placeholder--capture (marker initial)
+  (pcase-let*
+      ((`(,template ,pre-capture ,post-capture)
+        (org-with-point-at marker
+          (list (org-entry-get marker "PLACEHOLDER_CAPTURE_TEMPLATE" t)
+                (org-entry-get marker "PLACEHOLDER_PRE_CAPTURE" t)
+                (org-entry-get marker "PLACEHOLDER_POST_CAPTURE" t))))
+       (org-capture-entry `("" ""
+                            entry
+                            (function
+                             (lambda ()
+                               (org-goto-marker-or-bmk ,marker)))
+                            ,(if template
+                                 (read template)
+                               org-placeholder-default-capture-template)))
+       (org-capture-initial initial))
+
+    (when pre-capture
+      (org-with-gensyms 'hook
+        (set 'hook (list (read pre-capture)))
+        (run-hooks 'hook)))
+    (org-capture)
+    (when post-capture
+      (org-with-gensyms 'hook
+        (set 'hook (list (read post-capture)))
+        (run-hooks 'hook)))))
 
 (defun org-placeholder-map-parents (bookmark-name fn)
   "Call a function at each parent heading of the items."
