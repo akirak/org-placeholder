@@ -243,14 +243,18 @@ which is suitable for integration with embark package."
        (org-capture-initial initial))
 
     (when pre-capture
-      (org-with-gensyms 'hook
-        (set 'hook (list (read pre-capture)))
-        (run-hooks 'hook)))
+      (let ((func (read pre-capture)))
+        (condition-case-unless-debug _
+            (if (fboundp func)
+                (funcall func)
+              (error "Unbound function: %s" func)))))
     (org-capture)
     (when post-capture
-      (org-with-gensyms 'hook
-        (set 'hook (list (read post-capture)))
-        (run-hooks 'hook)))))
+      (let ((func (read post-capture)))
+        (condition-case-unless-debug _
+            (if (fboundp func)
+                (funcall func)
+              (error "Unbound function: %s" func)))))))
 
 (defun org-placeholder-map-parents (bookmark-name fn)
   "Call a function at each parent heading of the items."
