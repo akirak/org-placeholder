@@ -329,10 +329,12 @@ which is suitable for integration with embark package."
 (defun org-placeholder--insert-view (root type)
   (cl-check-type root marker)
   (require 'org-ql-view)
-  (let (strings)
+  (let (root-heading
+        strings)
     (save-current-buffer
       (org-with-point-at root
         (org-with-wide-buffer
+         (setq root-heading (org-get-heading t t t t))
          (let* ((root-level (org-outline-level))
                 (end-of-root (save-excursion (org-end-of-subtree)))
                 (regexp1 (org-placeholder--regexp-for-level (1+ root-level))))
@@ -385,6 +387,7 @@ which is suitable for integration with embark package."
                             (end-of-line))))))
                     (emit t)))
                 (push "" strings))))))))
+    (insert (propertize root-heading 'org-marker root) "\n\n")
     (insert (string-join (nreverse strings) "\n"))))
 
 ;;;; Default sorting function
