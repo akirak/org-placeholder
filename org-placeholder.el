@@ -49,6 +49,11 @@ It takes a function that takes two Org headline elements as
 arguments."
   :type 'function)
 
+(defcustom org-placeholder-default-capture-template
+  "* %i\n%?"
+  "Template for `org-capture' used in the package."
+  :type 'string)
+
 ;;;; Common
 
 (defun org-placeholder-read-bookmark-name (prompt)
@@ -219,14 +224,15 @@ which is suitable for integration with embark package."
              (marker (gethash parent marker-map))
              (org-capture-initial input)
              (root-name (gethash parent root-name-map))
-             (template (cdr (assq 'org-placeholder-capture-template
-                                  (bookmark-get-bookmark-record root-name))))
+             (template (org-entry-get marker "PLACEHOLDER_CAPTURE_TEMPLATE" t))
              (org-capture-entry `("" ""
                                   entry
                                   (function
                                    (lambda ()
                                      (org-goto-marker-or-bmk ,marker)))
-                                  ,(or template "* %i\n%?"))))
+                                  ,(if template
+                                       (read template)
+                                     org-placeholder-default-capture-template))))
         (org-capture)))))
 
 (defun org-placeholder-map-parents (bookmark-name fn)
