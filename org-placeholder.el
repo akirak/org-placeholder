@@ -361,29 +361,27 @@ which is suitable for integration with embark package."
   (pcase-exhaustive (bookmark-get-bookmark-record bookmark-name)
     (`nil
      (error "Bookmark record %s does not exist" bookmark-name))
-    ((map id filename)
-     (cond
-      (id
-       (if-let (marker (org-id-find id 'marker))
-           (list marker
-                 (org-placeholder--parse-type
-                  (org-entry-get marker "PLACEHOLDER_TYPE")))
-         (error "Entry for ID %s is not found" id)))
-      (filename
-       (let ((buffer (or (find-buffer-visiting filename)
-                         (find-file-noselect filename))))
-         (list buffer
+    ((and (app (alist-get 'id) id)
+          (guard id))
+     (if-let (marker (org-id-find id 'marker))
+         (list marker
                (org-placeholder--parse-type
-                (with-current-buffer buffer
-                  (org-with-wide-buffer
-                   (org-placeholder--find-keyword "PROPERTY"
-                     (lambda (value)
-                       (when (string-match (rx bol "PLACEHOLDER_TYPE="
-                                               (group (+ (not (any space)))))
-                                           value)
-                         (match-string 1 value))))))))))
-      (t
-       (error "Invalid record"))))))
+                (org-entry-get marker "PLACEHOLDER_TYPE")))
+       (error "Entry for ID %s is not found" id)))
+    ((and (app (alist-get 'filename) filename)
+          (guard filename))
+     (let ((buffer (or (find-buffer-visiting filename)
+                       (find-file-noselect filename))))
+       (list buffer
+             (org-placeholder--parse-type
+              (with-current-buffer buffer
+                (org-with-wide-buffer
+                 (org-placeholder--find-keyword "PROPERTY"
+                   (lambda (value)
+                     (when (string-match (rx bol "PLACEHOLDER_TYPE="
+                                             (group (+ (not (any space)))))
+                                         value)
+                       (match-string 1 value))))))))))))
 
 (defun org-placeholder--parse-type (string)
   (pcase-exhaustive string
