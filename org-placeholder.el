@@ -34,6 +34,8 @@
 (require 'bookmark)
 (require 'org)
 
+(declare-function org-ql-view--format-element "ext:org-ql")
+
 (defvar org-capture-entry)
 (defvar org-capture-initial)
 
@@ -294,8 +296,7 @@ which is suitable for integration with embark package."
            (pcase-exhaustive type
              (`nested
               (while (re-search-forward regexp1 bound t)
-                (let ((group-heading (org-no-properties (org-get-heading t t t t)))
-                      (bound (save-excursion (org-end-of-subtree))))
+                (let ((bound (save-excursion (org-end-of-subtree))))
                   (if-let (str (org-entry-get nil "PLACEHOLDER_LEVEL"))
                       (let ((target-level (+ root-level
                                              2 (string-to-number str))))
