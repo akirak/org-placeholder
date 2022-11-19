@@ -444,10 +444,12 @@ which is suitable for integration with embark package."
                               (end-of-line))))))
                       (emit t)))
                   (push "" strings)))))))
+      ;; FIXME: save outline visibility
       (cl-etypecase root
         (marker (save-current-buffer
                   (org-with-point-at root
                     (org-with-wide-buffer
+                     (org-show-subtree)
                      (setq root-heading (propertize (org-get-heading t t t t)
                                                     'org-marker root))
                      (run type
@@ -455,6 +457,7 @@ which is suitable for integration with embark package."
                           (save-excursion (org-end-of-subtree)))))))
         (buffer (with-current-buffer root
                   (org-with-wide-buffer
+                   (org-show-all)
                    (setq root-heading (propertize (buffer-name)
                                                   'org-marker (copy-marker (point-min))))
                    (run type
