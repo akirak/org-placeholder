@@ -535,5 +535,16 @@ which is suitable for integration with embark package."
             (> pa pb)
           pb))))
 
+;;;; Embark integration
+
+(defun org-placeholder-item-marker (item)
+  "Return the marker to an item.
+
+This is intended for use in `embark-transformer-alist' for
+writing your own transformer.
+
+This should be matched against \\='org-placeholder-item category."
+  (gethash item org-placeholder-marker-table))
+
 (provide 'org-placeholder)
 ;;; org-placeholder.el ends here
