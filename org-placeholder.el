@@ -56,6 +56,8 @@ arguments."
   "Template for `org-capture' used in the package."
   :type 'string)
 
+(defvar org-placeholder-marker-table nil)
+
 ;;;; Common
 
 (defun org-placeholder-read-bookmark-name (prompt)
@@ -140,10 +142,11 @@ state."
 (defun org-placeholder-find-or-create (&optional bookmark-name initial-input)
   (interactive (list (when current-prefix-arg
                        (org-placeholder-read-bookmark-name "Placeholder: "))))
+  (unless org-placeholder-marker-table
+    (setq org-placeholder-marker-table (make-hash-table :test #'equal)))
   (let (candidates
         (node-parent-table (make-hash-table :test #'equal))
         (node-group-table (make-hash-table :test #'equal))
-        (marker-table (make-hash-table :test #'equal))
         (root-names (if bookmark-name
                         (list bookmark-name)
                       (mapcar #'car (org-placeholder--bookmarks)))))
@@ -208,7 +211,7 @@ state."
                                          group-heading
                                        (format "%s: %s" root-name group-heading))
                                      node-group-table)
-                            (puthash heading marker marker-table)))))))))))))
+                            (puthash heading marker org-placeholder-marker-table)))))))))))))
       (dolist (root-name root-names)
         (pcase-exhaustive (org-placeholder--view-args root-name)
           (`(,root ,type)
@@ -226,16 +229,18 @@ state."
                         (run type root-name
                              0
                              nil))))))))
-      (let ((input (or (and initial-input
-                            (car (member-ignore-case initial-input candidates)))
-                       (completing-read "Find a node: " #'completions nil nil
-                                        initial-input))))
-        (if-let (marker (gethash input marker-table))
-            (with-current-buffer (marker-buffer marker)
-              (pop-to-buffer (current-buffer))
-              (goto-char marker)
-              (run-hooks 'org-ql-find-goto-hook))
-          (org-placeholder-capture-input input bookmark-name))))))
+      (unwind-protect
+          (let ((input (or (and initial-input
+                                (car (member-ignore-case initial-input candidates)))
+                           (completing-read "Find a node: " #'completions nil nil
+                                            initial-input))))
+            (if-let (marker (gethash input org-placeholder-marker-table))
+                (with-current-buffer (marker-buffer marker)
+                  (pop-to-buffer (current-buffer))
+                  (goto-char marker)
+                  (run-hooks 'org-ql-find-goto-hook))
+              (org-placeholder-capture-input input bookmark-name)))
+        (clrhash org-placeholder-marker-table)))))
 
 ;;;###autoload
 (defun org-placeholder-find-or-create-1 (name)
