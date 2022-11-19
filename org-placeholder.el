@@ -326,8 +326,9 @@ which is suitable for integration with embark package."
                    (org-with-wide-buffer
                     (org-show-all)
                     (goto-char (point-min))
-                    0
-                    nil))))))))
+                    (f type
+                       0
+                       nil)))))))))
 
 ;;;; Views like what org-ql-view provides
 
