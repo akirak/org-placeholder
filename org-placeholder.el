@@ -120,6 +120,22 @@ arguments."
 
 ;;;; Find
 
+(defcustom org-placeholder-prefix-todo t
+  "Whether to prefix each entry with the todo state.
+
+If this option is non-nil, each item in
+`org-placeholder-find-or-create' will be prefixed with its todo
+state."
+  :type 'boolean)
+
+(defcustom org-placeholder-suffix-tags t
+  "Whether to suffix each entry with tags.
+
+If this option is non-nil, each item in
+`org-placeholder-find-or-create' will be prefixed with its todo
+state."
+  :type 'boolean)
+
 ;;;###autoload
 (defun org-placeholder-find-or-create (&optional bookmark-name initial-input)
   (interactive (list (when current-prefix-arg
@@ -165,8 +181,18 @@ arguments."
                         (let* ((level (- (match-end 1)
                                          (match-beginning 1)))
                                (marker (copy-marker (match-beginning 0)))
-                               (heading (org-link-display-format
-                                         (match-string-no-properties 4))))
+                               (todo (when org-placeholder-prefix-todo
+                                       (match-string 2)))
+                               (tags (when org-placeholder-suffix-tags
+                                       (org-make-tag-string (org-get-tags))))
+                               (heading (concat (if todo
+                                                    (concat todo " ")
+                                                  "")
+                                                (org-link-display-format
+                                                 (match-string-no-properties 4))
+                                                (if tags
+                                                    (concat " " tags)
+                                                  ""))))
                           (cond
                            ((< level target-level)
                             (let ((olp (org-get-outline-path t t)))
