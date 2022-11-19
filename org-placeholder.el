@@ -190,11 +190,13 @@ arguments."
              (marker (save-current-buffer
                        (org-with-point-at root
                          (org-with-wide-buffer
+                          (org-show-subtree)
                           (run type root-name
                                (org-outline-level)
                                (save-excursion (org-end-of-subtree)))))))
              (buffer (with-current-buffer root
                        (org-with-wide-buffer
+                        (org-show-all)
                         (run type root-name
                              0
                              nil))))))))
@@ -316,11 +318,13 @@ which is suitable for integration with embark package."
          (marker (save-current-buffer
                    (org-with-point-at root
                      (org-with-wide-buffer
+                      (org-show-subtree)
                       (f type
                          (org-outline-level)
                          (save-excursion (org-end-of-subtree)))))))
          (buffer (with-current-buffer root
                    (org-with-wide-buffer
+                    (org-show-all)
                     (goto-char (point-min))
                     0
                     nil))))))))
