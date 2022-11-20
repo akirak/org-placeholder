@@ -35,7 +35,11 @@
 (require 'org)
 (require 'org-agenda)
 
+(declare-function org-element-property "org-element")
+(declare-function org-element-headline-parser "org-element")
+(declare-function org-ql--add-markers "ext:org-ql")
 (declare-function org-ql-view--format-element "ext:org-ql-view")
+(declare-function org-string-equal-ignore-case "org-compat")
 
 (defvar org-capture-entry)
 (defvar org-capture-initial)
@@ -541,8 +545,6 @@ which is suitable for integration with embark package."
     (`t
      (let* ((marker (or (get-char-property (pos-bol) 'org-hd-marker)
                         (get-char-property (pos-bol) 'org-marker)))
-            (name org-placeholder-view-name)
-            (root (org-placeholder-bookmark-root name))
             (title (read-from-minibuffer "Title of the new entry: " nil
                                          nil nil nil nil 'inherit)))
        (org-placeholder--capture marker title
