@@ -35,7 +35,7 @@
 (require 'org)
 (require 'org-agenda)
 
-(declare-function org-ql-view--format-element "ext:org-ql")
+(declare-function org-ql-view--format-element "ext:org-ql-view")
 
 (defvar org-capture-entry)
 (defvar org-capture-initial)
