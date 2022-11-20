@@ -214,22 +214,23 @@ state."
                                      node-group-table)
                             (puthash heading marker org-placeholder-marker-table)))))))))))))
       (dolist (root-name root-names)
-        (cl-etypecase (org-placeholder-bookmark-root root-name)
-          (marker (save-current-buffer
-                    (org-with-point-at root
+        (let ((root (org-placeholder-bookmark-root root-name)))
+          (cl-etypecase root
+            (marker (save-current-buffer
+                      (org-with-point-at root
+                        (org-with-wide-buffer
+                         (org-show-subtree)
+                         (run (org-placeholder--subtree-type)
+                              root-name
+                              (org-outline-level)
+                              (save-excursion (org-end-of-subtree)))))))
+            (buffer (with-current-buffer root
                       (org-with-wide-buffer
-                       (org-show-subtree)
-                       (run (org-placeholder--subtree-type)
+                       (org-show-all)
+                       (run (org-placeholder--buffer-type)
                             root-name
-                            (org-outline-level)
-                            (save-excursion (org-end-of-subtree)))))))
-          (buffer (with-current-buffer root
-                    (org-with-wide-buffer
-                     (org-show-all)
-                     (run (org-placeholder--buffer-type)
-                          root-name
-                          0
-                          nil))))))
+                            0
+                            nil)))))))
       (unwind-protect
           (let ((input (or (and initial-input
                                 (car (member-ignore-case initial-input candidates)))
@@ -346,21 +347,22 @@ which is suitable for integration with embark package."
                     (save-excursion
                       (beginning-of-line)
                       (funcall fn root-level))))))))))
-    (cl-etypecase (org-placeholder-bookmark-root bookmark-name)
-      (marker (save-current-buffer
-                (org-with-point-at root
+    (let ((root (org-placeholder-bookmark-root bookmark-name)))
+      (cl-etypecase root
+        (marker (save-current-buffer
+                  (org-with-point-at root
+                    (org-with-wide-buffer
+                     (org-show-subtree)
+                     (f (org-placeholder--subtree-type)
+                        (org-outline-level)
+                        (save-excursion (org-end-of-subtree)))))))
+        (buffer (with-current-buffer root
                   (org-with-wide-buffer
-                   (org-show-subtree)
-                   (f (org-placeholder--subtree-type)
-                      (org-outline-level)
-                      (save-excursion (org-end-of-subtree)))))))
-      (buffer (with-current-buffer root
-                (org-with-wide-buffer
-                 (org-show-all)
-                 (goto-char (point-min))
-                 (f (org-placeholder--buffer-type)
-                    0
-                    nil)))))))
+                   (org-show-all)
+                   (goto-char (point-min))
+                   (f (org-placeholder--buffer-type)
+                      0
+                      nil))))))))
 
 ;;;; Views like what org-ql-view provides
 
