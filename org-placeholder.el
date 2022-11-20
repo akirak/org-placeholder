@@ -27,7 +27,8 @@
 
 ;;; Commentary:
 
-;;
+;; This library help the user search and create headings in bookmarked
+;; locations.
 
 ;;; Code:
 
