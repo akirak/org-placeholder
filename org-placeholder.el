@@ -33,6 +33,7 @@
 
 (require 'bookmark)
 (require 'org)
+(require 'org-agenda)
 
 (declare-function org-ql-view--format-element "ext:org-ql")
 
@@ -365,6 +366,14 @@ which is suitable for integration with embark package."
 
 (defvar org-placeholder-view-name nil)
 
+(defvar org-placeholder-view-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map "g" #'org-placeholder-revert-view)
+    map))
+
+(define-derived-mode org-placeholder-view-mode org-agenda-mode
+  "Org Placeholder View")
+
 ;;;###autoload
 (defun org-placeholder-view (bookmark)
   (interactive (list (org-placeholder-read-bookmark-name "View: ")))
@@ -375,9 +384,8 @@ which is suitable for integration with embark package."
          (buffer (get-buffer-create (format "*View<%s>*" bookmark-name))))
     (with-current-buffer buffer
       (read-only-mode t)
-      (org-agenda-mode)
+      (org-placeholder-view-mode)
       (setq-local org-placeholder-view-name bookmark-name)
-      (local-set-key "g" #'org-placeholder-revert-view)
       (org-placeholder-revert-view))
     (funcall (if (eq this-command 'org-placeholder-view)
                  #'pop-to-buffer
