@@ -290,7 +290,8 @@ which is suitable for integration with embark package."
         (gethash marker-map)
         (org-placeholder--capture input)))))
 
-(defun org-placeholder--capture (marker initial)
+(cl-defun org-placeholder--capture (marker initial &key after-finalize)
+  (declare (indent 2))
   (pcase-let*
       ((`(,template ,pre-capture ,post-capture)
         (org-with-point-at marker
@@ -304,7 +305,8 @@ which is suitable for integration with embark package."
                                (org-goto-marker-or-bmk ,marker)))
                             ,(if template
                                  (read template)
-                               org-placeholder-default-capture-template)))
+                               org-placeholder-default-capture-template)
+                            :after-finalize ,after-finalize))
        (org-capture-initial initial))
 
     (when pre-capture
