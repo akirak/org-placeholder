@@ -402,7 +402,8 @@ which is suitable for integration with embark package."
     (erase-buffer)
     (org-placeholder--insert-view root)
     (org-agenda-finalize)
-    (goto-char (point-min))))
+    (goto-char (point-min))
+    (message "Refreshed the view")))
 
 (defun org-placeholder-bookmark-root (bookmark-name)
   (pcase-exhaustive (bookmark-get-bookmark-record bookmark-name)
