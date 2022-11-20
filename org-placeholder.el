@@ -535,7 +535,14 @@ which is suitable for integration with embark package."
          (root (org-placeholder-bookmark-root name))
          (title (read-from-minibuffer "Title of the new entry: " nil
                                       nil nil nil nil 'inherit)))
-    (org-placeholder--capture marker title)))
+    (org-placeholder--capture marker title
+      :after-finalize `(lambda ()
+                         (org-placeholder--maybe-refresh-view ,(buffer-name))))))
+
+(defun org-placeholder--maybe-refresh-view (buffer-name)
+  (when-let (buffer (get-buffer buffer-name))
+    (with-current-buffer buffer
+      (org-placeholder-revert-view))))
 
 ;;;; Default sorting function
 
