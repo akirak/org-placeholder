@@ -468,6 +468,7 @@ which is suitable for integration with embark package."
                                            0)))
                         (first-section t)
                         items)
+                    (font-lock-ensure (point) (pos-eol))
                     (push (thread-first
                             (org-get-heading t t t t)
                             (propertize 'org-marker (point-marker)
@@ -518,6 +519,7 @@ which is suitable for integration with embark package."
                   (org-with-point-at root
                     (org-with-wide-buffer
                      (org-show-subtree)
+                     (font-lock-ensure (point) (pos-eol))
                      (setq root-heading (propertize (org-get-heading t t t t)
                                                     'org-marker root))
                      (run type
