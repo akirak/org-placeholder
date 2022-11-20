@@ -214,22 +214,22 @@ state."
                                      node-group-table)
                             (puthash heading marker org-placeholder-marker-table)))))))))))))
       (dolist (root-name root-names)
-        (pcase-exhaustive (org-placeholder--view-args root-name)
-          (`(,root ,type)
-           (cl-etypecase root
-             (marker (save-current-buffer
-                       (org-with-point-at root
-                         (org-with-wide-buffer
-                          (org-show-subtree)
-                          (run type root-name
-                               (org-outline-level)
-                               (save-excursion (org-end-of-subtree)))))))
-             (buffer (with-current-buffer root
-                       (org-with-wide-buffer
-                        (org-show-all)
-                        (run type root-name
-                             0
-                             nil))))))))
+        (cl-etypecase (org-placeholder-bookmark-root root-name)
+          (marker (save-current-buffer
+                    (org-with-point-at root
+                      (org-with-wide-buffer
+                       (org-show-subtree)
+                       (run (org-placeholder--subtree-type)
+                            root-name
+                            (org-outline-level)
+                            (save-excursion (org-end-of-subtree)))))))
+          (buffer (with-current-buffer root
+                    (org-with-wide-buffer
+                     (org-show-all)
+                     (run (org-placeholder--buffer-type)
+                          root-name
+                          0
+                          nil))))))
       (unwind-protect
           (let ((input (or (and initial-input
                                 (car (member-ignore-case initial-input candidates)))
@@ -344,23 +344,21 @@ which is suitable for integration with embark package."
                     (save-excursion
                       (beginning-of-line)
                       (funcall fn root-level))))))))))
-    (pcase-exhaustive (org-placeholder--view-args bookmark-name)
-      (`(,root ,type)
-       (cl-etypecase root
-         (marker (save-current-buffer
-                   (org-with-point-at root
-                     (org-with-wide-buffer
-                      (org-show-subtree)
-                      (f type
-                         (org-outline-level)
-                         (save-excursion (org-end-of-subtree)))))))
-         (buffer (with-current-buffer root
-                   (org-with-wide-buffer
-                    (org-show-all)
-                    (goto-char (point-min))
-                    (f type
-                       0
-                       nil)))))))))
+    (cl-etypecase (org-placeholder-bookmark-root bookmark-name)
+      (marker (save-current-buffer
+                (org-with-point-at root
+                  (org-with-wide-buffer
+                   (org-show-subtree)
+                   (f (org-placeholder--subtree-type)
+                      (org-outline-level)
+                      (save-excursion (org-end-of-subtree)))))))
+      (buffer (with-current-buffer root
+                (org-with-wide-buffer
+                 (org-show-all)
+                 (goto-char (point-min))
+                 (f (org-placeholder--buffer-type)
+                    0
+                    nil)))))))
 
 ;;;; Views like what org-ql-view provides
 
@@ -395,46 +393,55 @@ which is suitable for integration with embark package."
 (defun org-placeholder-revert-view (&rest _args)
   (interactive)
   (let ((inhibit-read-only t)
-        (args (org-placeholder--view-args org-placeholder-view-name)))
+        (root (org-placeholder-bookmark-root
+               (or org-placeholder-view-name
+                   (error "org-placeholder-view-name is not set")))))
     (erase-buffer)
-    (apply #'org-placeholder--insert-view args)
+    (org-placeholder--insert-view root)
     (org-agenda-finalize)
     (goto-char (point-min))))
 
-(defun org-placeholder--view-args (bookmark-name)
+(defun org-placeholder-bookmark-root (bookmark-name)
   (pcase-exhaustive (bookmark-get-bookmark-record bookmark-name)
     (`nil
      (error "Bookmark record %s does not exist" bookmark-name))
     ((and (app (alist-get 'id) id)
           (guard id))
-     (if-let (marker (org-id-find id 'marker))
-         (list marker
-               (org-placeholder--parse-type
-                (org-entry-get marker "PLACEHOLDER_TYPE")))
-       (error "Entry for ID %s is not found" id)))
+     (or (org-id-find id 'marker)
+         (error "Entry for ID %s is not found" id)))
     ((and (app (alist-get 'filename) filename)
           (guard filename))
-     (let ((buffer (or (find-buffer-visiting filename)
-                       (find-file-noselect filename))))
-       (list buffer
-             (org-placeholder--parse-type
-              (with-current-buffer buffer
-                (org-with-wide-buffer
-                 (org-placeholder--find-keyword "PROPERTY"
-                   (lambda (value)
-                     (when (string-match (rx bol "PLACEHOLDER_TYPE="
-                                             (group (+ (not (any space)))))
-                                         value)
-                       (match-string 1 value))))))))))))
+     (or (find-buffer-visiting filename)
+         (find-file-noselect filename)))))
+
+(defun org-placeholder--subtree-type ()
+  (org-placeholder--parse-type
+   (org-entry-get nil "PLACEHOLDER_TYPE")))
+
+(defun org-placeholder--buffer-type ()
+  (org-placeholder--parse-type
+   (save-excursion
+     (goto-char (point-min))
+     (org-placeholder--find-keyword "PROPERTY"
+       (lambda (value)
+         (when (string-match (rx bol "PLACEHOLDER_TYPE="
+                                 (group (+ (not (any space)))))
+                             value)
+           (match-string 1 value)))))))
 
 (defun org-placeholder--parse-type (string)
   (pcase-exhaustive string
     ("nested" 'nested)))
 
-(defun org-placeholder--insert-view (root type)
-  (cl-check-type root (or marker buffer))
+(defun org-placeholder--insert-view (root)
   (require 'org-ql-view)
-  (let (root-heading
+  (let ((type (cl-etypecase root
+                (marker (org-with-point-at root
+                          (org-placeholder--subtree-type)))
+                (buffer (with-current-buffer root
+                          (org-with-wide-buffer
+                           (org-placeholder--buffer-type))))))
+        root-heading
         strings)
     (cl-flet
         ((run (type root-level end-of-root)
