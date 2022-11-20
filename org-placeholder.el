@@ -464,8 +464,9 @@ which is suitable for integration with embark package."
                     (push (thread-first
                             (org-get-heading t t t t)
                             (propertize 'org-marker (point-marker)
-                                        'org-placeholder-container (= (1+ root-level)
-                                                                      (1- target-level))))
+                                        'org-placeholder-container (or (= (1+ root-level)
+                                                                          (1- target-level))
+                                                                       'indirect)))
                           strings)
                     (cl-flet
                         ((emit (&optional no-empty-line)
@@ -494,7 +495,8 @@ which is suitable for integration with embark package."
                                         (propertize 'face 'font-lock-doc-face
                                                     'org-marker (point-marker)
                                                     'org-placeholder-container
-                                                    (= level (1- target-level))))
+                                                    (or (= level (1- target-level))
+                                                        'indirect)))
                                       strings)))
                              ((= level target-level)
                               (beginning-of-line)
@@ -526,19 +528,42 @@ which is suitable for integration with embark package."
     (insert (string-join (nreverse strings) "\n"))))
 
 (defun org-placeholder-view-capture ()
-  "Add an item to the group at point."
+  "Add an item to the group at point, or add a subgroup."
   (interactive)
-  (or (get-char-property (pos-bol) 'org-placeholder-container)
-      (user-error "You cannot capture here"))
-  (let* ((marker (or (get-char-property (pos-bol) 'org-hd-marker)
-                     (get-char-property (pos-bol) 'org-marker)))
-         (name org-placeholder-view-name)
-         (root (org-placeholder-bookmark-root name))
-         (title (read-from-minibuffer "Title of the new entry: " nil
-                                      nil nil nil nil 'inherit)))
-    (org-placeholder--capture marker title
-      :after-finalize `(lambda ()
-                         (org-placeholder--maybe-refresh-view ,(buffer-name))))))
+  (pcase (or (get-char-property (pos-bol) 'org-placeholder-container)
+             (save-excursion
+               (when-let (pos (previous-single-property-change
+                               (point) 'org-placeholder-container))
+                 (goto-char pos)
+                 (get-char-property (pos-bol) 'org-placeholder-container))))
+    (`t
+     (let* ((marker (or (get-char-property (pos-bol) 'org-hd-marker)
+                        (get-char-property (pos-bol) 'org-marker)))
+            (name org-placeholder-view-name)
+            (root (org-placeholder-bookmark-root name))
+            (title (read-from-minibuffer "Title of the new entry: " nil
+                                         nil nil nil nil 'inherit)))
+       (org-placeholder--capture marker title
+         :after-finalize `(lambda ()
+                            (org-placeholder--maybe-refresh-view ,(buffer-name))))))
+    (`indirect
+     (let* ((marker (or (get-char-property (pos-bol) 'org-hd-marker)
+                        (get-char-property (pos-bol) 'org-marker)))
+            (pos-text (thing-at-point 'line))
+            (org-capture-initial (read-from-minibuffer "Title of the new group: " nil
+                                                       nil nil nil nil 'inherit))
+            (org-capture-entry `("" ""
+                                 entry
+                                 (function
+                                  (lambda ()
+                                    (org-goto-marker-or-bmk ,marker)))
+                                 "* %i"
+                                 :immediate-finish t
+                                 :after-finalize
+                                 (lambda ()
+                                   (org-placeholder--maybe-refresh-view ,(buffer-name))
+                                   (search-forward ,pos-text nil t)))))
+       (org-capture)))))
 
 (defun org-placeholder--maybe-refresh-view (buffer-name)
   (when-let (buffer (get-buffer buffer-name))
