@@ -367,6 +367,7 @@ which is suitable for integration with embark package."
 (defvar org-placeholder-view-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map "g" #'org-placeholder-revert-view)
+    (define-key map "c" #'org-placeholder-view-capture)
     map))
 
 (define-derived-mode org-placeholder-view-mode org-agenda-mode
@@ -449,10 +450,6 @@ which is suitable for integration with embark package."
              (pcase-exhaustive type
                (`nested
                 (while (re-search-forward regexp1 end-of-root t)
-                  (push (thread-first
-                          (org-get-heading t t t t)
-                          (propertize 'org-marker (point-marker)))
-                        strings)
                   (let ((bound (save-excursion (org-end-of-subtree)))
                         (target-level (+ root-level
                                          2
@@ -461,6 +458,12 @@ which is suitable for integration with embark package."
                                            0)))
                         (first-section t)
                         items)
+                    (push (thread-first
+                            (org-get-heading t t t t)
+                            (propertize 'org-marker (point-marker)
+                                        'org-placeholder-container (= (1+ root-level)
+                                                                      (1- target-level))))
+                          strings)
                     (cl-flet
                         ((emit (&optional no-empty-line)
                            (setq strings (append (thread-last
@@ -486,7 +489,9 @@ which is suitable for integration with embark package."
                                         (format " (%s)" (org-no-properties
                                                          (org-format-outline-path olp)))
                                         (propertize 'face 'font-lock-doc-face
-                                                    'org-marker (point-marker)))
+                                                    'org-marker (point-marker)
+                                                    'org-placeholder-container
+                                                    (= level (1- target-level))))
                                       strings)))
                              ((= level target-level)
                               (beginning-of-line)
@@ -516,6 +521,19 @@ which is suitable for integration with embark package."
                         nil))))))
     (insert root-heading "\n\n")
     (insert (string-join (nreverse strings) "\n"))))
+
+(defun org-placeholder-view-capture ()
+  "Add an item to the group at point."
+  (interactive)
+  (or (get-char-property (pos-bol) 'org-placeholder-container)
+      (user-error "You cannot capture here"))
+  (let* ((marker (or (get-char-property (pos-bol) 'org-hd-marker)
+                     (get-char-property (pos-bol) 'org-marker)))
+         (name org-placeholder-view-name)
+         (root (org-placeholder-bookmark-root name))
+         (title (read-from-minibuffer "Title of the new entry: " nil
+                                      nil nil nil nil 'inherit)))
+    (org-placeholder--capture marker title)))
 
 ;;;; Default sorting function
 
