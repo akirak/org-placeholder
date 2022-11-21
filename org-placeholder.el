@@ -219,7 +219,18 @@ state."
                                          group-heading
                                        (format "%s: %s" root-name group-heading))
                                      node-group-table)
-                            (puthash heading marker org-placeholder-marker-table)))))))))))))
+                            (puthash heading marker org-placeholder-marker-table)))))))))
+               (`simple
+                (while (re-search-forward regexp1 end-of-root t)
+                  (unless (save-match-data (org-in-archived-heading-p))
+                    (beginning-of-line)
+                    (looking-at org-complex-heading-regexp)
+                    (goto-char (match-end 0))
+                    (let ((marker (copy-marker (match-beginning 0)))
+                          (heading (format-heading-from-match)))
+                      (push heading candidates)
+                      (puthash heading root-name node-group-table)
+                      (puthash heading marker org-placeholder-marker-table)))))))))
       (dolist (root-name root-names)
         (let ((root (org-placeholder-bookmark-root root-name)))
           (cl-etypecase root
@@ -353,7 +364,9 @@ which is suitable for integration with embark package."
                               (funcall fn root-level)))))
                     (save-excursion
                       (beginning-of-line)
-                      (funcall fn root-level))))))))))
+                      (funcall fn root-level))))))
+             (`simple
+              (funcall fn root-level))))))
     (let ((root (org-placeholder-bookmark-root bookmark-name)))
       (cl-etypecase root
         (marker (save-current-buffer
@@ -444,7 +457,8 @@ which is suitable for integration with embark package."
 
 (defun org-placeholder--parse-type (string)
   (pcase-exhaustive string
-    ("nested" 'nested)))
+    ("nested" 'nested)
+    ("simple" 'simple)))
 
 (defun org-placeholder--insert-view (root)
   (require 'org-ql-view)
@@ -514,7 +528,19 @@ which is suitable for integration with embark package."
                                     items)
                               (end-of-line))))))
                       (emit t)))
-                  (push "" strings)))))))
+                  (push "" strings)))
+               (`simple
+                (let (items)
+                  (while (re-search-forward regexp1 end-of-root t)
+                    (beginning-of-line)
+                    (push (org-ql--add-markers (org-element-headline-parser))
+                          items)
+                    (end-of-line))
+                  (setq strings (thread-last
+                                  items
+                                  (seq-sort (or org-placeholder-sort-function
+                                                #'ignore))
+                                  (mapcar #'org-ql-view--format-element)))))))))
       ;; FIXME: save outline visibility
       (cl-etypecase root
         (marker (save-current-buffer
