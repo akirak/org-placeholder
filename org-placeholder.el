@@ -448,12 +448,8 @@ which is suitable for integration with embark package."
   (org-placeholder--parse-type
    (save-excursion
      (goto-char (point-min))
-     (org-placeholder--find-keyword "PROPERTY"
-       (lambda (value)
-         (when (string-match (rx bol "PLACEHOLDER_TYPE="
-                                 (group (+ (not (any space)))))
-                             value)
-           (match-string 1 value)))))))
+     (unless (looking-at-p org-heading-regexp)
+       (org-entry-get nil "PLACEHOLDER_TYPE")))))
 
 (defun org-placeholder--parse-type (string)
   (pcase-exhaustive string
