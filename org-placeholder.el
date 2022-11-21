@@ -244,6 +244,7 @@ state."
                               (save-excursion (org-end-of-subtree)))))))
             (buffer (with-current-buffer root
                       (org-with-wide-buffer
+                       (goto-char (point-min))
                        (org-show-all)
                        (run (org-placeholder--buffer-type)
                             root-name
