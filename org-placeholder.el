@@ -172,6 +172,19 @@ state."
                            (cons 'annotation-function #'annotator)
                            (cons 'group-function #'group)))
              (complete-with-action action candidates string pred)))
+         (format-heading-from-match ()
+           (let ((todo (when org-placeholder-prefix-todo
+                         (match-string 2)))
+                 (tags (when org-placeholder-suffix-tags
+                         (org-make-tag-string (org-get-tags)))))
+             (concat (if todo
+                         (concat todo " ")
+                       "")
+                     (org-link-display-format
+                      (match-string-no-properties 4))
+                     (if tags
+                         (concat " " tags)
+                       ""))))
          (run (type root-name root-level end-of-root)
            (let ((regexp1 (org-placeholder--regexp-for-level (1+ root-level))))
              (pcase-exhaustive type
@@ -187,21 +200,10 @@ state."
                         (olp-string nil))
                     (while (re-search-forward org-complex-heading-regexp bound t)
                       (unless (save-match-data (org-in-archived-heading-p))
-                        (let* ((level (- (match-end 1)
-                                         (match-beginning 1)))
-                               (marker (copy-marker (match-beginning 0)))
-                               (todo (when org-placeholder-prefix-todo
-                                       (match-string 2)))
-                               (tags (when org-placeholder-suffix-tags
-                                       (org-make-tag-string (org-get-tags))))
-                               (heading (concat (if todo
-                                                    (concat todo " ")
-                                                  "")
-                                                (org-link-display-format
-                                                 (match-string-no-properties 4))
-                                                (if tags
-                                                    (concat " " tags)
-                                                  ""))))
+                        (let ((level (- (match-end 1)
+                                        (match-beginning 1)))
+                              (marker (copy-marker (match-beginning 0)))
+                              (heading (format-heading-from-match)))
                           (cond
                            ((< level target-level)
                             (let ((olp (org-get-outline-path t t)))
