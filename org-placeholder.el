@@ -275,14 +275,14 @@ which is suitable for integration with embark package."
 (defun org-placeholder-capture-input (input &optional bookmark-names)
   "Create a heading into a placeholder."
   (interactive "s")
-  (let ((root-name-map (make-hash-table :test #'equal))
+  (let ((group-map (make-hash-table :test #'equal))
         (marker-map (make-hash-table :test #'equal))
         candidates)
     (cl-labels
         ((group (candidate transform)
            (if transform
                candidate
-             (gethash candidate root-name-map)))
+             (gethash candidate group-map)))
          (completions (string pred action)
            (if (eq action 'metadata)
                (cons 'metadata
@@ -290,12 +290,18 @@ which is suitable for integration with embark package."
                            (cons 'group-function #'group)))
              (complete-with-action action candidates string pred)))
          (add-parent (root-name root-level)
-           (let ((candidate (org-no-properties
-                             (org-format-outline-path
-                              (seq-drop (org-get-outline-path t t)
-                                        root-level)))))
+           (let* ((non-heading (and (= root-level 0)
+                                    (org-before-first-heading-p)))
+                  (candidate (if non-heading
+                                 root-name
+                               (org-no-properties
+                                (org-format-outline-path
+                                 (seq-drop (org-get-outline-path t t)
+                                           root-level))))))
              (push candidate candidates)
-             (puthash candidate root-name root-name-map)
+             (if non-heading
+                 (puthash candidate "Files" group-map)
+               (puthash candidate root-name group-map))
              (puthash candidate (point-marker) marker-map))))
       (dolist (bookmark (or (if (stringp bookmark-names)
                                 (list bookmark-names)
@@ -317,11 +323,16 @@ which is suitable for integration with embark package."
           (list (org-entry-get marker "PLACEHOLDER_CAPTURE_TEMPLATE" t)
                 (org-entry-get marker "PLACEHOLDER_PRE_CAPTURE" t)
                 (org-entry-get marker "PLACEHOLDER_POST_CAPTURE" t))))
+       (file (org-with-point-at marker
+               (when (org-before-first-heading-p)
+                 (buffer-file-name))))
        (org-capture-entry `("" ""
                             entry
-                            (function
-                             (lambda ()
-                               (org-goto-marker-or-bmk ,marker)))
+                            ,(if file
+                                 `(file ,file)
+                               `(function
+                                 (lambda ()
+                                   (org-goto-marker-or-bmk ,marker))))
                             ,(if template
                                  (read template)
                                org-placeholder-default-capture-template)
@@ -586,9 +597,11 @@ which is suitable for integration with embark package."
                                                        nil nil nil nil 'inherit))
             (org-capture-entry `("" ""
                                  entry
-                                 (function
-                                  (lambda ()
-                                    (org-goto-marker-or-bmk ,marker)))
+                                 ,(if (org-before-first-heading-p)
+                                      `(file ,(buffer-file-name (marker-buffer marker)))
+                                    `(function
+                                      (lambda ()
+                                        (org-goto-marker-or-bmk ,marker))))
                                  "* %i"
                                  :immediate-finish t
                                  :after-finalize
