@@ -176,14 +176,14 @@ state."
            (let ((todo (when org-placeholder-prefix-todo
                          (match-string 2)))
                  (tags (when org-placeholder-suffix-tags
-                         (org-make-tag-string (org-get-tags)))))
+                         (org-get-tags))))
              (concat (if todo
                          (concat todo " ")
                        "")
                      (org-link-display-format
                       (match-string-no-properties 4))
                      (if tags
-                         (concat " " tags)
+                         (concat " " (org-make-tag-string tags))
                        ""))))
          (run (type root-name root-level end-of-root)
            (let ((regexp1 (org-placeholder--regexp-for-level (1+ root-level))))
