@@ -185,41 +185,47 @@ state."
                      (if tags
                          (concat " " (org-make-tag-string tags))
                        ""))))
+         (scan-subgroups (root-name root-level target-level bound)
+           (let ((group-heading (org-no-properties (org-get-heading t t t t)))
+                 (olp-string nil))
+             (while (re-search-forward org-complex-heading-regexp bound t)
+               (unless (save-match-data (org-in-archived-heading-p))
+                 (let ((level (- (match-end 1)
+                                 (match-beginning 1)))
+                       (marker (copy-marker (match-beginning 0)))
+                       (heading (format-heading-from-match)))
+                   (cond
+                    ((< level target-level)
+                     (if-let (str (org-entry-get nil "PLACEHOLDER_LEVEL"))
+                         (scan-subgroups root-name root-level
+                                         (+ level 1 (string-to-number str))
+                                         (save-excursion (org-end-of-subtree)))
+                       (let ((olp (org-get-outline-path t t)))
+                         (setq olp-string
+                               (org-no-properties
+                                (org-format-outline-path
+                                 (seq-drop olp (1+ root-level))))))))
+                    ((= level target-level)
+                     (push heading candidates)
+                     (puthash heading olp-string node-parent-table)
+                     (puthash heading
+                              (if bookmark-name
+                                  group-heading
+                                (format "%s: %s" root-name group-heading))
+                              node-group-table)
+                     (puthash heading marker org-placeholder-marker-table))))))))
          (run (type root-name root-level end-of-root)
            (let ((regexp1 (org-placeholder--regexp-for-level (1+ root-level))))
              (pcase-exhaustive type
                (`nested
                 (while (re-search-forward regexp1 end-of-root t)
-                  (let ((group-heading (org-no-properties (org-get-heading t t t t)))
-                        (bound (save-excursion (org-end-of-subtree)))
-                        (target-level (+ root-level
-                                         2
-                                         (if-let (str (org-entry-get nil "PLACEHOLDER_LEVEL"))
-                                             (string-to-number str)
-                                           0)))
-                        (olp-string nil))
-                    (while (re-search-forward org-complex-heading-regexp bound t)
-                      (unless (save-match-data (org-in-archived-heading-p))
-                        (let ((level (- (match-end 1)
-                                        (match-beginning 1)))
-                              (marker (copy-marker (match-beginning 0)))
-                              (heading (format-heading-from-match)))
-                          (cond
-                           ((< level target-level)
-                            (let ((olp (org-get-outline-path t t)))
-                              (setq olp-string
-                                    (org-no-properties
-                                     (org-format-outline-path
-                                      (seq-drop olp (1+ root-level)))))))
-                           ((= level target-level)
-                            (push heading candidates)
-                            (puthash heading olp-string node-parent-table)
-                            (puthash heading
-                                     (if bookmark-name
-                                         group-heading
-                                       (format "%s: %s" root-name group-heading))
-                                     node-group-table)
-                            (puthash heading marker org-placeholder-marker-table)))))))))
+                  (scan-subgroups root-name root-level
+                                  (+ root-level
+                                     2
+                                     (if-let (str (org-entry-get nil "PLACEHOLDER_LEVEL"))
+                                         (string-to-number str)
+                                       0))
+                                  (save-excursion (org-end-of-subtree)))))
                (`simple
                 (while (re-search-forward regexp1 end-of-root t)
                   (unless (save-match-data (org-in-archived-heading-p))
@@ -357,26 +363,34 @@ which is suitable for integration with embark package."
 (defun org-placeholder-map-parents (bookmark-name fn)
   "Call a function at each parent heading of the items."
   (declare (indent 1))
-  (cl-flet
-      ((f (type root-level bound)
+  (cl-labels
+      ((scan-subgroups (root-level target-level bound)
+         (while (re-search-forward org-complex-heading-regexp bound t)
+           (if-let (str (org-entry-get nil "PLACEHOLDER_LEVEL"))
+               (scan-subgroups root-level
+                               (+ (- (match-end 1) (match-beginning 1))
+                                  1
+                                  (string-to-number str))
+                               (save-excursion (org-end-of-subtree)))
+             (when (and (= (1- target-level)
+                           (- (match-end 1) (match-beginning 1)))
+                        (not (org-in-archived-heading-p)))
+               (save-excursion
+                 (beginning-of-line)
+                 (funcall fn root-level))))))
+       (f (type root-level bound)
          (let ((regexp1 (org-placeholder--regexp-for-level (1+ root-level))))
            (pcase-exhaustive type
              (`nested
               (while (re-search-forward regexp1 bound t)
-                (let ((bound (save-excursion (org-end-of-subtree))))
-                  (if-let (str (org-entry-get nil "PLACEHOLDER_LEVEL"))
-                      (let ((target-level (+ root-level
-                                             2 (string-to-number str))))
-                        (while (re-search-forward org-complex-heading-regexp bound t)
-                          (when (and (= (1- target-level)
-                                        (- (match-end 1) (match-beginning 1)))
-                                     (not (org-in-archived-heading-p)))
-                            (save-excursion
-                              (beginning-of-line)
-                              (funcall fn root-level)))))
-                    (save-excursion
-                      (beginning-of-line)
-                      (funcall fn root-level))))))
+                (if-let (str (org-entry-get nil "PLACEHOLDER_LEVEL"))
+                    (scan-subgroups root-level
+                                    (+ root-level
+                                       2 (string-to-number str))
+                                    (save-excursion (org-end-of-subtree)))
+                  (save-excursion
+                    (beginning-of-line)
+                    (funcall fn root-level)))))
              (`simple
               (funcall fn root-level))))))
     (let ((root (org-placeholder-bookmark-root bookmark-name)))
@@ -493,6 +507,33 @@ which is suitable for integration with embark package."
              (unless no-empty-line
                (push "" strings)))
            (setq items nil))
+         (scan-subgroups (root-level target-level bound)
+           (while (re-search-forward org-complex-heading-regexp bound t)
+             (unless (org-in-archived-heading-p)
+               (let ((level (org-outline-level)))
+                 (cond
+                  ((< level target-level)
+                   (if-let (str (org-entry-get nil "PLACEHOLDER_LEVEL"))
+                       (scan-subgroups root-level
+                                       (+ level 1 (string-to-number str))
+                                       (save-excursion (org-end-of-subtree)))
+                     (emit)
+                     (when-let (olp (seq-drop (org-get-outline-path t t)
+                                              (1+ root-level)))
+                       (push (thread-first
+                               (format " (%s)" (org-no-properties
+                                                (org-format-outline-path olp)))
+                               (propertize 'face 'font-lock-doc-face
+                                           'org-marker (point-marker)
+                                           'org-placeholder-container
+                                           (or (= level (1- target-level))
+                                               'indirect)))
+                             strings))))
+                  ((= level target-level)
+                   (beginning-of-line)
+                   (push (org-ql--add-markers (org-element-headline-parser))
+                         items)
+                   (end-of-line)))))))
          (run (type root-level end-of-root)
            (let ((regexp1 (org-placeholder--regexp-for-level (1+ root-level))))
              (pcase-exhaustive type
@@ -513,28 +554,7 @@ which is suitable for integration with embark package."
                                                                           (1- target-level))
                                                                        'indirect)))
                           strings)
-                    (while (re-search-forward org-complex-heading-regexp bound t)
-                      (unless (org-in-archived-heading-p)
-                        (let ((level (org-outline-level)))
-                          (cond
-                           ((< level target-level)
-                            (emit)
-                            (when-let (olp (seq-drop (org-get-outline-path t t)
-                                                     (1+ root-level)))
-                              (push (thread-first
-                                      (format " (%s)" (org-no-properties
-                                                       (org-format-outline-path olp)))
-                                      (propertize 'face 'font-lock-doc-face
-                                                  'org-marker (point-marker)
-                                                  'org-placeholder-container
-                                                  (or (= level (1- target-level))
-                                                      'indirect)))
-                                    strings)))
-                           ((= level target-level)
-                            (beginning-of-line)
-                            (push (org-ql--add-markers (org-element-headline-parser))
-                                  items)
-                            (end-of-line)))))))
+                    (scan-subgroups root-level target-level bound))
                   (push "" strings)))
                (`simple
                 (while (re-search-forward regexp1 end-of-root t)
