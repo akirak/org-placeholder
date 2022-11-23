@@ -477,9 +477,23 @@ which is suitable for integration with embark package."
                           (org-with-wide-buffer
                            (org-placeholder--buffer-type))))))
         root-heading
-        strings)
-    (cl-flet
-        ((run (type root-level end-of-root)
+        items
+        strings
+        first-section)
+    (cl-labels
+        ((emit (&optional no-empty-line)
+           (setq strings (append (thread-last
+                                   items
+                                   (seq-sort (or org-placeholder-sort-function
+                                                 #'ignore))
+                                   (mapcar #'org-ql-view--format-element))
+                                 strings))
+           (if first-section
+               (setq first-section nil)
+             (unless no-empty-line
+               (push "" strings)))
+           (setq items nil))
+         (run (type root-level end-of-root)
            (let ((regexp1 (org-placeholder--regexp-for-level (1+ root-level))))
              (pcase-exhaustive type
                (`nested
@@ -489,9 +503,8 @@ which is suitable for integration with embark package."
                                          2
                                          (if-let (str (org-entry-get nil "PLACEHOLDER_LEVEL"))
                                              (string-to-number str)
-                                           0)))
-                        (first-section t)
-                        items)
+                                           0))))
+                    (setq first-section t)
                     (font-lock-ensure (point) (pos-eol))
                     (push (thread-first
                             (org-get-heading t t t t)
@@ -500,55 +513,40 @@ which is suitable for integration with embark package."
                                                                           (1- target-level))
                                                                        'indirect)))
                           strings)
-                    (cl-flet
-                        ((emit (&optional no-empty-line)
-                           (setq strings (append (thread-last
-                                                   items
-                                                   (seq-sort (or org-placeholder-sort-function
-                                                                 #'ignore))
-                                                   (mapcar #'org-ql-view--format-element))
-                                                 strings))
-                           (if first-section
-                               (setq first-section nil)
-                             (unless no-empty-line
-                               (push "" strings)))
-                           (setq items nil)))
-                      (while (re-search-forward org-complex-heading-regexp bound t)
-                        (unless (org-in-archived-heading-p)
-                          (let ((level (org-outline-level)))
-                            (cond
-                             ((< level target-level)
-                              (emit)
-                              (when-let (olp (seq-drop (org-get-outline-path t t)
-                                                       (1+ root-level)))
-                                (push (thread-first
-                                        (format " (%s)" (org-no-properties
-                                                         (org-format-outline-path olp)))
-                                        (propertize 'face 'font-lock-doc-face
-                                                    'org-marker (point-marker)
-                                                    'org-placeholder-container
-                                                    (or (= level (1- target-level))
-                                                        'indirect)))
-                                      strings)))
-                             ((= level target-level)
-                              (beginning-of-line)
-                              (push (org-ql--add-markers (org-element-headline-parser))
-                                    items)
-                              (end-of-line))))))
-                      (emit t)))
+                    (while (re-search-forward org-complex-heading-regexp bound t)
+                      (unless (org-in-archived-heading-p)
+                        (let ((level (org-outline-level)))
+                          (cond
+                           ((< level target-level)
+                            (emit)
+                            (when-let (olp (seq-drop (org-get-outline-path t t)
+                                                     (1+ root-level)))
+                              (push (thread-first
+                                      (format " (%s)" (org-no-properties
+                                                       (org-format-outline-path olp)))
+                                      (propertize 'face 'font-lock-doc-face
+                                                  'org-marker (point-marker)
+                                                  'org-placeholder-container
+                                                  (or (= level (1- target-level))
+                                                      'indirect)))
+                                    strings)))
+                           ((= level target-level)
+                            (beginning-of-line)
+                            (push (org-ql--add-markers (org-element-headline-parser))
+                                  items)
+                            (end-of-line)))))))
                   (push "" strings)))
                (`simple
-                (let (items)
-                  (while (re-search-forward regexp1 end-of-root t)
-                    (beginning-of-line)
-                    (push (org-ql--add-markers (org-element-headline-parser))
-                          items)
-                    (end-of-line))
-                  (setq strings (thread-last
-                                  items
-                                  (seq-sort (or org-placeholder-sort-function
-                                                #'ignore))
-                                  (mapcar #'org-ql-view--format-element)))))))))
+                (while (re-search-forward regexp1 end-of-root t)
+                  (beginning-of-line)
+                  (push (org-ql--add-markers (org-element-headline-parser))
+                        items)
+                  (end-of-line))
+                (setq strings (thread-last
+                                items
+                                (seq-sort (or org-placeholder-sort-function
+                                              #'ignore))
+                                (mapcar #'org-ql-view--format-element))))))))
       ;; FIXME: save outline visibility
       (cl-etypecase root
         (marker (save-current-buffer
