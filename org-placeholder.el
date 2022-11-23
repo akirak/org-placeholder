@@ -563,6 +563,7 @@ which is suitable for integration with embark package."
                           (save-excursion (org-end-of-subtree)))))))
         (buffer (with-current-buffer root
                   (org-with-wide-buffer
+                   (goto-char (point-min))
                    (org-show-all)
                    (setq root-heading (propertize (or (org-placeholder--find-keyword "title")
                                                       (buffer-name))
