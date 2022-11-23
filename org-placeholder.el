@@ -533,7 +533,8 @@ which is suitable for integration with embark package."
                    (beginning-of-line)
                    (push (org-ql--add-markers (org-element-headline-parser))
                          items)
-                   (end-of-line)))))))
+                   (end-of-line))))))
+           (emit t))
          (run (type root-level end-of-root)
            (let ((regexp1 (org-placeholder--regexp-for-level (1+ root-level))))
              (pcase-exhaustive type
