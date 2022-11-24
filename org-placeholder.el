@@ -366,18 +366,19 @@ which is suitable for integration with embark package."
   (cl-labels
       ((scan-subgroups (root-level target-level bound)
          (while (re-search-forward org-complex-heading-regexp bound t)
-           (if-let (str (org-entry-get nil "PLACEHOLDER_LEVEL"))
-               (scan-subgroups root-level
-                               (+ (- (match-end 1) (match-beginning 1))
-                                  1
-                                  (string-to-number str))
-                               (save-excursion (org-end-of-subtree)))
-             (when (and (= (1- target-level)
-                           (- (match-end 1) (match-beginning 1)))
-                        (not (org-in-archived-heading-p)))
-               (save-excursion
-                 (beginning-of-line)
-                 (funcall fn root-level))))))
+           (let ((level (- (match-end 1) (match-beginning 1))))
+             (if-let (str (org-entry-get nil "PLACEHOLDER_LEVEL"))
+                 (scan-subgroups root-level
+                                 (+ level
+                                    1
+                                    (string-to-number str))
+                                 (save-excursion (org-end-of-subtree)))
+               (when (and (= (1- target-level)
+                             level)
+                          (not (org-in-archived-heading-p)))
+                 (save-excursion
+                   (beginning-of-line)
+                   (funcall fn root-level)))))))
        (f (type root-level bound)
          (let ((regexp1 (org-placeholder--regexp-for-level (1+ root-level))))
            (pcase-exhaustive type
