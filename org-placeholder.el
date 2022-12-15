@@ -526,6 +526,7 @@ which is suitable for integration with embark package."
                                                 (org-format-outline-path olp)))
                                (propertize 'face 'font-lock-doc-face
                                            'org-marker (point-marker)
+                                           'org-agenda-structural-header t
                                            'org-placeholder-container
                                            (or (= level (1- target-level))
                                                'indirect)))
@@ -552,6 +553,7 @@ which is suitable for integration with embark package."
                     (push (thread-first
                             (org-get-heading t t t t)
                             (propertize 'org-marker (point-marker)
+                                        'org-agenda-structural-header t
                                         'org-placeholder-container (or (= (1+ root-level)
                                                                           (1- target-level))
                                                                        'indirect)))
