@@ -631,13 +631,14 @@ which is suitable for integration with embark package."
                                     "Title of the new group: ")
                                   nil
                                   nil nil nil nil 'inherit))
-            (org-capture-entry `("" ""
-                                 entry
-                                 ,(if (org-before-first-heading-p)
-                                      `(file ,(buffer-file-name (marker-buffer marker)))
-                                    `(function
-                                      (lambda ()
-                                        (org-goto-marker-or-bmk ,marker))))
+            (target (if (and marker
+                             (org-with-point-at marker
+                               (not (org-before-first-heading-p))))
+                        `(function
+                          (lambda ()
+                            (org-goto-marker-or-bmk ,marker)))
+                      `(file ,(buffer-file-name (marker-buffer marker)))))
+            (org-capture-entry `("" "" entry ,target
                                  "* %i"
                                  :immediate-finish t
                                  :after-finalize
