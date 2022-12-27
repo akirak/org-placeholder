@@ -608,7 +608,11 @@ which is suitable for integration with embark package."
     (`t
      (let* ((marker (or (get-char-property (pos-bol) 'org-hd-marker)
                         (get-char-property (pos-bol) 'org-marker)))
-            (title (read-from-minibuffer "Title of the new entry: " nil
+            (group-title (org-with-point-at marker
+                           (org-no-properties (org-get-heading t t t t))))
+            (title (read-from-minibuffer (format "Title of the new entry (in \"%s\"): "
+                                                 group-title)
+                                         nil
                                          nil nil nil nil 'inherit)))
        (org-placeholder--capture marker title
          :after-finalize `(lambda ()
@@ -616,9 +620,17 @@ which is suitable for integration with embark package."
     (`indirect
      (let* ((marker (or (get-char-property (pos-bol) 'org-hd-marker)
                         (get-char-property (pos-bol) 'org-marker)))
+            (parent-title (when marker
+                            (org-with-point-at marker
+                              (org-no-properties (org-get-heading t t t t)))))
             (pos-text (thing-at-point 'line))
-            (org-capture-initial (read-from-minibuffer "Title of the new group: " nil
-                                                       nil nil nil nil 'inherit))
+            (org-capture-initial (read-from-minibuffer
+                                  (if parent-title
+                                      (format "Title of the new group (in \"%s\"): "
+                                              parent-title)
+                                    "Title of the new group: ")
+                                  nil
+                                  nil nil nil nil 'inherit))
             (org-capture-entry `("" ""
                                  entry
                                  ,(if (org-before-first-heading-p)
