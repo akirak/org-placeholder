@@ -243,7 +243,7 @@ state."
             (marker (save-current-buffer
                       (org-with-point-at root
                         (org-with-wide-buffer
-                         (org-show-subtree)
+                         (org-fold-show-subtree)
                          (run (org-placeholder--subtree-type)
                               root-name
                               (org-outline-level)
@@ -251,7 +251,7 @@ state."
             (buffer (with-current-buffer root
                       (org-with-wide-buffer
                        (goto-char (point-min))
-                       (org-show-all)
+                       (org-fold-show-all)
                        (run (org-placeholder--buffer-type)
                             root-name
                             0
@@ -399,13 +399,13 @@ which is suitable for integration with embark package."
         (marker (save-current-buffer
                   (org-with-point-at root
                     (org-with-wide-buffer
-                     (org-show-subtree)
+                     (org-fold-show-subtree)
                      (f (org-placeholder--subtree-type)
                         (org-outline-level)
                         (save-excursion (org-end-of-subtree)))))))
         (buffer (with-current-buffer root
                   (org-with-wide-buffer
-                   (org-show-all)
+                   (org-fold-show-all)
                    (goto-char (point-min))
                    (f (org-placeholder--buffer-type)
                       0
@@ -576,7 +576,7 @@ which is suitable for integration with embark package."
         (marker (save-current-buffer
                   (org-with-point-at root
                     (org-with-wide-buffer
-                     (org-show-subtree)
+                     (org-fold-show-subtree)
                      (font-lock-ensure (point) (pos-eol))
                      (setq root-heading (propertize (org-get-heading t t t t)
                                                     'org-marker root))
@@ -586,7 +586,7 @@ which is suitable for integration with embark package."
         (buffer (with-current-buffer root
                   (org-with-wide-buffer
                    (goto-char (point-min))
-                   (org-show-all)
+                   (org-fold-show-all)
                    (setq root-heading (propertize (or (org-placeholder--find-keyword "title")
                                                       (buffer-name))
                                                   'org-marker (copy-marker (point-min))))
@@ -623,7 +623,6 @@ which is suitable for integration with embark package."
             (parent-title (when marker
                             (org-with-point-at marker
                               (org-no-properties (org-get-heading t t t t)))))
-            (pos-text (thing-at-point 'line))
             (org-capture-initial (read-from-minibuffer
                                   (if parent-title
                                       (format "Title of the new group (in \"%s\"): "
