@@ -616,7 +616,8 @@ which is suitable for integration with embark package."
                                          nil nil nil nil 'inherit)))
        (org-placeholder--capture marker title
          :after-finalize `(lambda ()
-                            (org-placeholder--maybe-refresh-view ,(buffer-name))))))
+                            (org-placeholder--maybe-refresh-view ,(buffer-name))
+                            (org-placeholder--goto-captured-in-view)))))
     (`indirect
      (let* ((marker (or (get-char-property (pos-bol) 'org-hd-marker)
                         (get-char-property (pos-bol) 'org-marker)))
