@@ -148,6 +148,16 @@ state."
 (defun org-placeholder-find-or-create (&optional bookmark-name initial-input)
   (interactive (list (when current-prefix-arg
                        (org-placeholder-read-bookmark-name "Placeholder: "))))
+  (pcase (org-placeholder--read-entry bookmark-name initial-input)
+    (`(,input . ,marker)
+     (if marker
+         (with-current-buffer (marker-buffer marker)
+           (pop-to-buffer (current-buffer))
+           (goto-char marker)
+           (run-hooks 'org-ql-find-goto-hook))
+       (org-placeholder-capture-input input bookmark-name)))))
+
+(defun org-placeholder--read-entry (&optional bookmark-name initial-input)
   (unless org-placeholder-marker-table
     (setq org-placeholder-marker-table (make-hash-table :test #'equal)))
   (let (candidates
@@ -261,12 +271,7 @@ state."
                                 (car (member-ignore-case initial-input candidates)))
                            (completing-read "Find a node: " #'completions nil nil
                                             initial-input))))
-            (if-let (marker (gethash input org-placeholder-marker-table))
-                (with-current-buffer (marker-buffer marker)
-                  (pop-to-buffer (current-buffer))
-                  (goto-char marker)
-                  (run-hooks 'org-ql-find-goto-hook))
-              (org-placeholder-capture-input input bookmark-name)))
+            (cons input (gethash input org-placeholder-marker-table)))
         (clrhash org-placeholder-marker-table)))))
 
 ;;;###autoload
@@ -282,6 +287,12 @@ which is suitable for integration with embark package."
 (defun org-placeholder-capture-input (input &optional bookmark-names)
   "Create a heading into a placeholder."
   (interactive "s")
+  (org-placeholder--capture
+      (org-placeholder--read-parent (format "Add \"%s\": " input)
+                                    bookmark-names)
+      input))
+
+(defun org-placeholder--read-parent (prompt &optional bookmark-names)
   (let ((group-map (make-hash-table :test #'equal))
         (marker-map (make-hash-table :test #'equal))
         candidates)
@@ -317,10 +328,9 @@ which is suitable for integration with embark package."
         (org-placeholder-map-parents bookmark
           (apply-partially #'add-parent bookmark)))
       (thread-first
-        (completing-read (format "Add \"%s\": " input)
+        (completing-read prompt
                          #'completions)
-        (gethash marker-map)
-        (org-placeholder--capture input)))))
+        (gethash marker-map)))))
 
 (cl-defun org-placeholder--capture (marker initial &key after-finalize)
   (declare (indent 2))
