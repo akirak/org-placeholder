@@ -692,6 +692,17 @@ which is suitable for integration with embark package."
                        'no-update)
     (revert-buffer)))
 
+;;;###autoload
+(defun org-placeholder-all-views ()
+  "Dispatch all views (experimental).
+
+This command turns on `tab-bar-mode' and display each view in a tab."
+  (interactive)
+  (tab-bar-mode 1)
+  (dolist (bmk (mapcar #'car (org-placeholder--bookmarks)))
+    (tab-bar-new-tab)
+    (org-placeholder-view bmk)))
+
 ;;;; Default sorting function
 
 (defvar org-placeholder-keyword-order nil)
