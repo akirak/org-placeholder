@@ -643,13 +643,16 @@ which is suitable for integration with embark package."
                                  :after-finalize
                                  (lambda ()
                                    (org-placeholder--maybe-refresh-view ,(buffer-name))
-                                   (let ((marker (org-with-point-at org-capture-last-stored-marker
-                                                   (when (org-match-line org-complex-heading-regexp)
-                                                     (copy-marker (match-beginning 3))))))
-                                     (goto-char (point-min))
-                                     (text-property-search-forward
-                                      'org-marker marker #'equal))))))
+                                   (org-placeholder--goto-captured-in-view)))))
        (org-capture)))))
+
+(defun org-placeholder--goto-captured-in-view ()
+  (let ((marker (org-with-point-at org-capture-last-stored-marker
+                  (when (org-match-line org-complex-heading-regexp)
+                    (copy-marker (match-beginning 0))))))
+    (goto-char (point-min))
+    (when (text-property-search-forward 'org-marker marker #'equal)
+      (beginning-of-line))))
 
 (defun org-placeholder--maybe-refresh-view (buffer-name)
   (when-let (buffer (get-buffer buffer-name))
