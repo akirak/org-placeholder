@@ -429,6 +429,7 @@ which is suitable for integration with embark package."
   (let ((map (make-sparse-keymap)))
     (define-key map "g" #'org-placeholder-revert-view)
     (define-key map "c" #'org-placeholder-view-capture)
+    (define-key map [remap org-agenda-refile] #'org-placeholder-refile-from-view)
     map))
 
 (define-derived-mode org-placeholder-view-mode org-agenda-mode
@@ -669,6 +670,27 @@ which is suitable for integration with embark package."
   (when-let (buffer (get-buffer buffer-name))
     (with-current-buffer buffer
       (org-placeholder-revert-view))))
+
+(defun org-placeholder-refile-from-view ()
+  (interactive)
+  (unless org-placeholder-view-name
+    (user-error "Run this command from inside `org-placeholder-view-mode'"))
+  (when (org-get-at-bol 'org-agenda-structural-header)
+    (user-error "Don't run this command on a group"))
+  (unless (or (org-get-at-bol 'org-hd-marker)
+              (org-get-at-bol 'org-marker))
+    (user-error "Not on an entry"))
+  (let ((parent (org-placeholder--read-parent (format "Refile target of \"%s\": "
+                                                      (org-link-display-format
+                                                       (org-get-at-bol 'raw-value)))
+                                              (list org-placeholder-view-name))))
+    (org-agenda-refile nil (org-with-point-at parent
+                             (list (org-get-heading t t t t)
+                                   (buffer-file-name)
+                                   nil
+                                   (marker-position parent)))
+                       'no-update)
+    (revert-buffer)))
 
 ;;;; Default sorting function
 
