@@ -671,8 +671,8 @@ which is suitable for integration with embark package."
     (with-current-buffer buffer
       (org-placeholder-revert-view))))
 
-(defun org-placeholder-refile-from-view ()
-  (interactive)
+(defun org-placeholder-refile-from-view (&optional arg)
+  (interactive "P")
   (unless org-placeholder-view-name
     (user-error "Run this command from inside `org-placeholder-view-mode'"))
   (when (org-get-at-bol 'org-agenda-structural-header)
@@ -683,7 +683,8 @@ which is suitable for integration with embark package."
   (let ((parent (org-placeholder--read-parent (format "Refile target of \"%s\": "
                                                       (org-link-display-format
                                                        (org-get-at-bol 'raw-value)))
-                                              (list org-placeholder-view-name))))
+                                              (unless arg
+                                                (list org-placeholder-view-name)))))
     (org-agenda-refile nil (org-with-point-at parent
                              (list (org-get-heading t t t t)
                                    (buffer-file-name)
