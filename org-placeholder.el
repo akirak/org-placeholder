@@ -144,6 +144,12 @@ If this option is non-nil, each item in
 state."
   :type 'boolean)
 
+(defcustom org-placeholder-find-hook nil
+  "Hook run after visiting a node.
+
+This hook is run after `org-placeholder-find-or-create' visits an
+existing node.")
+
 ;;;###autoload
 (defun org-placeholder-find-or-create (&optional bookmark-name initial-input)
   (interactive (list (when current-prefix-arg
@@ -154,7 +160,7 @@ state."
          (with-current-buffer (marker-buffer marker)
            (pop-to-buffer (current-buffer))
            (goto-char marker)
-           (run-hooks 'org-ql-find-goto-hook))
+           (run-hooks 'org-placeholder-find-hook))
        (org-placeholder-capture-input input bookmark-name)))))
 
 (defun org-placeholder--read-entry (&optional bookmark-name initial-input)
