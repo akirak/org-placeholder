@@ -439,7 +439,8 @@ which is suitable for integration with embark package."
     map))
 
 (define-derived-mode org-placeholder-view-mode org-agenda-mode
-  "Org Placeholder View")
+  "Org Placeholder View"
+  (setq-local imenu-create-index-function #'org-placeholder-view-imenu-function))
 
 ;;;###autoload
 (defun org-placeholder-view (bookmark)
@@ -544,6 +545,10 @@ which is suitable for integration with embark package."
                                (propertize 'face 'font-lock-doc-face
                                            'org-marker (point-marker)
                                            'org-agenda-structural-header t
+                                           'org-placeholder-formatted-olp
+                                           (org-no-properties
+                                            (org-format-outline-path olp))
+                                           'org-placeholder-outline-level level
                                            'org-placeholder-container
                                            (or (= level (1- target-level))
                                                'indirect)))
@@ -571,6 +576,7 @@ which is suitable for integration with embark package."
                             (org-get-heading t t t t)
                             (propertize 'org-marker (point-marker)
                                         'org-agenda-structural-header t
+                                        'org-placeholder-outline-level (1+ root-level)
                                         'org-placeholder-container (or (= (1+ root-level)
                                                                           (1- target-level))
                                                                        'indirect)))
@@ -709,6 +715,27 @@ This command turns on `tab-bar-mode' and display each view in a tab."
   (dolist (bmk (mapcar #'car (org-placeholder--bookmarks)))
     (tab-bar-new-tab)
     (org-placeholder-view bmk)))
+
+(defun org-placeholder-view-imenu-function ()
+  (save-excursion
+    (let (results
+          prev-level
+          olp)
+      (while (text-property-search-forward 'org-agenda-structural-header)
+        (let ((level (get-text-property (pos-bol) 'org-placeholder-outline-level))
+              (headline (or (get-text-property (pos-bol) 'org-placeholder-formatted-olp)
+                            (string-trim (buffer-substring-no-properties (pos-bol) (pos-eol))))))
+          (if (or (not prev-level)
+                  (> level prev-level))
+              (setq olp (cons headline olp))
+            (setq olp (list headline)))
+          (push (cons (string-join (reverse olp) "/")
+                      (if imenu-use-markers
+                          (copy-marker (pos-bol))
+                        (pos-bol)))
+                results)
+          (setq prev-level level)))
+      results)))
 
 ;;;; Default sorting function
 
