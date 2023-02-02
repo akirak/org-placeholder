@@ -724,7 +724,8 @@ This command turns on `tab-bar-mode' and display each view in a tab."
       (while (text-property-search-forward 'org-agenda-structural-header)
         (let ((level (get-text-property (pos-bol) 'org-placeholder-outline-level))
               (headline (or (get-text-property (pos-bol) 'org-placeholder-formatted-olp)
-                            (string-trim (buffer-substring-no-properties (pos-bol) (pos-eol))))))
+                            (org-link-display-format
+                             (string-trim (buffer-substring-no-properties (pos-bol) (pos-eol)))))))
           (if (or (not prev-level)
                   (> level prev-level))
               (setq olp (cons headline olp))
