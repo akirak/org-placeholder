@@ -493,8 +493,9 @@ which is suitable for integration with embark package."
   (org-placeholder--parse-type
    (save-excursion
      (goto-char (point-min))
-     (unless (looking-at-p org-heading-regexp)
-       (org-entry-get nil "PLACEHOLDER_TYPE")))))
+     (if (looking-at-p org-property-drawer-re)
+         (org-entry-get nil "PLACEHOLDER_TYPE")
+       (org-placeholder--find-keyword "PLACEHOLDER_TYPE")))))
 
 (defun org-placeholder--parse-type (string)
   (pcase-exhaustive string
