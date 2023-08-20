@@ -66,7 +66,7 @@ arguments."
   "Plist of options for `org-capture' used in the package.
 
 See `org-capture-templates'."
-  :type 'string)
+  :type 'sexp)
 
 (defvar org-placeholder-marker-table nil)
 
