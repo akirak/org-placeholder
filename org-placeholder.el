@@ -62,6 +62,12 @@ arguments."
   "Template for `org-capture' used in the package."
   :type 'string)
 
+(defcustom org-placeholder-default-capture-options nil
+  "Plist of options for `org-capture' used in the package.
+
+See `org-capture-templates'."
+  :type 'string)
+
 (defvar org-placeholder-marker-table nil)
 
 ;;;; Common
@@ -359,7 +365,8 @@ which is suitable for integration with embark package."
                             ,(if template
                                  (read template)
                                org-placeholder-default-capture-template)
-                            :after-finalize ,after-finalize))
+                            :after-finalize ,after-finalize
+                            ,@org-placeholder-default-capture-options))
        (org-capture-initial initial))
 
     (when pre-capture
@@ -668,7 +675,8 @@ which is suitable for integration with embark package."
                                  :after-finalize
                                  (lambda ()
                                    (org-placeholder--maybe-refresh-view ,(buffer-name))
-                                   (org-placeholder--goto-captured-in-view)))))
+                                   (org-placeholder--goto-captured-in-view))
+                                 ,@org-placeholder-default-capture-options)))
        (org-capture)))))
 
 (defun org-placeholder--goto-captured-in-view ()
