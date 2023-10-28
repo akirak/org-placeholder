@@ -68,6 +68,12 @@ arguments."
 See `org-capture-templates'."
   :type 'sexp)
 
+(defcustom org-placeholder-search-subtrees t
+  "Provide completion candidates from subtrees.
+
+If this value is non-nil, `org-placeholder-find-or-create'"
+  :type 'boolean)
+
 (defvar org-placeholder-marker-table nil)
 
 ;;;; Common
@@ -235,7 +241,21 @@ existing node.")
                                   group-heading
                                 (format "%s: %s" root-name group-heading))
                               node-group-table)
-                     (puthash heading marker org-placeholder-marker-table))))))))
+                     (puthash heading marker org-placeholder-marker-table))
+                    (org-placeholder-search-subtrees
+                     (let ((this-olp-string (thread-first
+                                              (org-get-outline-path t t)
+                                              (seq-drop (1- target-level))
+                                              (org-format-outline-path)
+                                              (org-no-properties))))
+                       (push this-olp-string candidates)
+                       (puthash this-olp-string olp-string node-parent-table)
+                       (puthash this-olp-string
+                                (if bookmark-name
+                                    group-heading
+                                  (format "%s: %s" root-name group-heading))
+                                node-group-table)
+                       (puthash this-olp-string marker org-placeholder-marker-table)))))))))
          (run (type root-name root-level end-of-root)
            (let ((regexp1 (org-placeholder--regexp-for-level (1+ root-level))))
              (pcase-exhaustive type
