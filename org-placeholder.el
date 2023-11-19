@@ -504,10 +504,22 @@ which is suitable for integration with embark package."
                (or org-placeholder-view-name
                    (error "org-placeholder-view-name is not set")))))
     (erase-buffer)
-    (org-placeholder--insert-view root)
+    (apply #'org-placeholder--insert-view
+           root
+           (org-placeholder--parse-ql-query "todo:"))
     (org-agenda-finalize)
     (goto-char (point-min))
     (message "Refreshed the view")))
+
+(defun org-placeholder--parse-ql-query (query)
+  (let* ((query (org-ql--query-string-to-sexp query))
+         (query (org-ql--normalize-query query))
+         (plist (org-ql--query-preamble query))
+         (predicate (org-ql--query-predicate (plist-get plist :query))))
+    (thread-first
+      plist
+      (plist-put :predicate predicate)
+      (org-plist-delete :query))))
 
 (defun org-placeholder-bookmark-root (bookmark-name)
   (pcase-exhaustive (bookmark-get-bookmark-record bookmark-name)
@@ -539,7 +551,9 @@ which is suitable for integration with embark package."
     ("nested" 'nested)
     ("simple" 'simple)))
 
-(defun org-placeholder--insert-view (root)
+(cl-defun org-placeholder--insert-view (root
+                                        ;; Experimental for org-ql
+                                        &key predicate preamble preamble-case-fold)
   (require 'org-ql-view)
   (let ((type (cl-etypecase root
                 (marker (org-with-point-at root
@@ -564,6 +578,14 @@ which is suitable for integration with embark package."
              (unless no-empty-line
                (push "" strings)))
            (setq items nil))
+         (match-query ()
+           (save-excursion
+             (when preamble
+               (let ((case-fold-search preamble-case-fold))
+                 (when (re-search-forward preamble (org-entry-end-position) t)
+                   (outline-back-to-heading))))
+             (message "predicate: %s" predicate)
+             (funcall predicate)))
          (scan-subgroups (root-level target-level bound)
            (while (re-search-forward org-complex-heading-regexp bound t)
              (when (or org-placeholder-show-archived-entries-in-view
@@ -594,8 +616,10 @@ which is suitable for integration with embark package."
                              strings))))
                   ((= level target-level)
                    (beginning-of-line)
-                   (push (org-ql--add-markers (org-element-headline-parser))
-                         items)
+                   (when (or (not predicate)
+                             (match-query))
+                     (push (org-ql--add-markers (org-element-headline-parser))
+                           items))
                    (end-of-line))))))
            (emit t))
          (run (type root-level end-of-root)
