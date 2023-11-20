@@ -74,6 +74,16 @@ See `org-capture-templates'."
 If this value is non-nil, `org-placeholder-find-or-create'"
   :type 'boolean)
 
+(defcustom org-placeholder-show-archived-entries-in-view nil
+  "Whether to show archived entries in views.
+
+The default value is nil, and archived entries are not visible in
+`org-placeholder-view', as in other commands in this package such
+as `org-placeholder-find-or-create'.
+
+If this variable is non-nil, archived entries will be made visible in views."
+  :type 'boolean)
+
 (defvar org-placeholder-marker-table nil)
 
 ;;;; Common
@@ -556,7 +566,8 @@ which is suitable for integration with embark package."
            (setq items nil))
          (scan-subgroups (root-level target-level bound)
            (while (re-search-forward org-complex-heading-regexp bound t)
-             (unless (org-in-archived-heading-p)
+             (when (or org-placeholder-show-archived-entries-in-view
+                       (not (org-in-archived-heading-p)))
                (let ((level (org-outline-level)))
                  (cond
                   ((< level target-level)
