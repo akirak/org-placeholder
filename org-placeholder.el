@@ -84,6 +84,18 @@ as `org-placeholder-find-or-create'.
 If this variable is non-nil, archived entries will be made visible in views."
   :type 'boolean)
 
+(defcustom org-placeholder-highlight-line t
+  "Highlight the current line on certain events.
+
+If the value of this variable is non-nil, the current line will
+be highlighted when jumping to an item after certain events like
+reverting the buffer.
+
+At present, `pulse-momentary-highlight-one-line' is used to
+highlight the current line. If the function is unavailable, this
+feature doesn't work anyway."
+  :type 'boolean)
+
 (defvar org-placeholder-marker-table nil)
 
 ;;;; Common
@@ -510,7 +522,9 @@ which is suitable for integration with embark package."
     (goto-char (point-min))
     (when (and marker
                (text-property-search-forward 'org-marker marker #'equal))
-      (beginning-of-line))
+      (beginning-of-line)
+      (when org-placeholder-highlight-line
+        (org-placeholder--highlight-line)))
     (message "Refreshed the view")))
 
 (defun org-placeholder-bookmark-root (bookmark-name)
@@ -542,6 +556,10 @@ which is suitable for integration with embark package."
   (pcase-exhaustive string
     ("nested" 'nested)
     ("simple" 'simple)))
+
+(defun org-placeholder--highlight-line ()
+  (when (fboundp 'pulse-momentary-highlight-one-line)
+    (pulse-momentary-highlight-one-line)))
 
 (defun org-placeholder--insert-view (root)
   (require 'org-ql-view)
@@ -720,7 +738,9 @@ which is suitable for integration with embark package."
                     (copy-marker (match-beginning 0))))))
     (goto-char (point-min))
     (when (text-property-search-forward 'org-marker marker #'equal)
-      (beginning-of-line))))
+      (beginning-of-line)
+      (when org-placeholder-highlight-line
+        (org-placeholder--highlight-line)))))
 
 (defun org-placeholder--maybe-refresh-view (buffer-name)
   (when-let (buffer (get-buffer buffer-name))
