@@ -523,7 +523,8 @@ which is suitable for integration with embark package."
     (when (and marker
                (text-property-search-forward 'org-marker marker #'equal))
       (beginning-of-line)
-      (when org-placeholder-highlight-line
+      (when (and (called-interactively-p 'interactive)
+                 org-placeholder-highlight-line)
         (org-placeholder--highlight-line)))
     (message "Refreshed the view")))
 
