@@ -500,6 +500,7 @@ which is suitable for integration with embark package."
 (defun org-placeholder-revert-view (&rest _args)
   (interactive)
   (let ((inhibit-read-only t)
+        (marker (get-text-property (point) 'org-marker))
         (root (org-placeholder-bookmark-root
                (or org-placeholder-view-name
                    (error "org-placeholder-view-name is not set")))))
@@ -507,6 +508,9 @@ which is suitable for integration with embark package."
     (org-placeholder--insert-view root)
     (org-agenda-finalize)
     (goto-char (point-min))
+    (when (and marker
+               (text-property-search-forward 'org-marker marker #'equal))
+      (beginning-of-line))
     (message "Refreshed the view")))
 
 (defun org-placeholder-bookmark-root (bookmark-name)
