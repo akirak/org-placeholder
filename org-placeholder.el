@@ -512,9 +512,7 @@ which is suitable for integration with embark package."
 (defun org-placeholder-revert-view (&rest _args)
   (interactive)
   (org-placeholder--revert-view
-   :marker (get-text-property (point) 'org-marker)
-   :highlight (and (not (called-interactively-p 'interactive))
-                   org-placeholder-highlight-line)))
+   :marker (get-text-property (point) 'org-marker)))
 
 (cl-defun org-placeholder--revert-view (&key marker highlight parent index)
   (let ((inhibit-read-only t)
