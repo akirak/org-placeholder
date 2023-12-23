@@ -511,8 +511,13 @@ which is suitable for integration with embark package."
 
 (defun org-placeholder-revert-view (&rest _args)
   (interactive)
+  (org-placeholder--revert-view
+   :marker (get-text-property (point) 'org-marker)
+   :highlight (and (called-interactively-p 'interactive)
+                   org-placeholder-highlight-line)))
+
+(cl-defun org-placeholder--revert-view (&key marker highlight)
   (let ((inhibit-read-only t)
-        (marker (get-text-property (point) 'org-marker))
         (root (org-placeholder-bookmark-root
                (or org-placeholder-view-name
                    (error "org-placeholder-view-name is not set")))))
@@ -523,8 +528,7 @@ which is suitable for integration with embark package."
     (when (and marker
                (text-property-search-forward 'org-marker marker #'equal))
       (beginning-of-line)
-      (when (and (called-interactively-p 'interactive)
-                 org-placeholder-highlight-line)
+      (when highlight
         (org-placeholder--highlight-line)))
     (message "Refreshed the view")))
 
@@ -768,7 +772,7 @@ which is suitable for integration with embark package."
                                    nil
                                    (marker-position parent)))
                        'no-update)
-    (revert-buffer)))
+    (org-placeholder--revert-view)))
 
 ;;;###autoload
 (defun org-placeholder-all-views ()
