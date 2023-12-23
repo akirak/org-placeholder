@@ -513,7 +513,7 @@ which is suitable for integration with embark package."
   (interactive)
   (org-placeholder--revert-view
    :marker (get-text-property (point) 'org-marker)
-   :highlight (and (called-interactively-p 'interactive)
+   :highlight (and (not (called-interactively-p 'interactive))
                    org-placeholder-highlight-line)))
 
 (cl-defun org-placeholder--revert-view (&key marker highlight)
