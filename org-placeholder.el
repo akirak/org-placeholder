@@ -516,7 +516,7 @@ which is suitable for integration with embark package."
    :highlight (and (not (called-interactively-p 'interactive))
                    org-placeholder-highlight-line)))
 
-(cl-defun org-placeholder--revert-view (&key marker highlight)
+(cl-defun org-placeholder--revert-view (&key marker highlight parent index)
   (let ((inhibit-read-only t)
         (root (org-placeholder-bookmark-root
                (or org-placeholder-view-name
@@ -525,11 +525,22 @@ which is suitable for integration with embark package."
     (org-placeholder--insert-view root)
     (org-agenda-finalize)
     (goto-char (point-min))
-    (when (and marker
-               (text-property-search-forward 'org-marker marker #'equal))
-      (beginning-of-line)
-      (when highlight
-        (org-placeholder--highlight-line)))
+    (cond
+     (marker
+      (when (text-property-search-forward 'org-marker marker #'equal)
+        (beginning-of-line)))
+     (parent
+      (when (text-property-search-forward 'org-marker parent #'equal)
+        (when index
+          (forward-line index)))))
+    (pcase highlight
+      (`t
+       (org-placeholder--highlight-line))
+      (`(id ,id)
+       (save-excursion
+         (goto-char (point-min))
+         (when (text-property-search-forward 'ID id #'equal)
+           (org-placeholder--highlight-line)))))
     (message "Refreshed the view")))
 
 (defun org-placeholder-bookmark-root (bookmark-name)
@@ -761,18 +772,28 @@ which is suitable for integration with embark package."
   (unless (or (org-get-at-bol 'org-hd-marker)
               (org-get-at-bol 'org-marker))
     (user-error "Not on an entry"))
-  (let ((parent (org-placeholder--read-parent (format "Refile target of \"%s\": "
-                                                      (org-link-display-format
-                                                       (org-get-at-bol 'raw-value)))
-                                              (unless arg
-                                                (list org-placeholder-view-name)))))
+  (let* ((id (org-get-at-bol 'ID))
+         (parent (org-placeholder--read-parent (format "Refile target of \"%s\": "
+                                                       (org-link-display-format
+                                                        (org-get-at-bol 'raw-value)))
+                                               (unless arg
+                                                 (list org-placeholder-view-name))))
+         (orig-parent (save-excursion
+                        (when (text-property-search-backward 'org-placeholder-container)
+                          (cons (org-get-at-bol 'org-marker)
+                                (cdr (posn-actual-col-row (posn-at-point (point))))))))
+         (index (when orig-parent
+                  (- (cdr (posn-actual-col-row (posn-at-point (point))))
+                     (cdr orig-parent)))))
     (org-agenda-refile nil (org-with-point-at parent
                              (list (org-get-heading t t t t)
                                    (buffer-file-name)
                                    nil
                                    (marker-position parent)))
                        'no-update)
-    (org-placeholder--revert-view)))
+    (org-placeholder--revert-view :highlight (when id `(id ,id))
+                                  :parent (car orig-parent)
+                                  :index index)))
 
 ;;;###autoload
 (defun org-placeholder-all-views ()
