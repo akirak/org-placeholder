@@ -744,7 +744,18 @@ which is suitable for integration with embark package."
                                    (org-placeholder--maybe-refresh-view ,(buffer-name))
                                    (org-placeholder--goto-captured-in-view))
                                  ,@org-placeholder-default-capture-options)))
-       (org-capture)))))
+       (org-capture)))
+    ;; If none of the above applies, add a top-level section.
+    (`nil
+     (let* ((marker (save-restriction
+                      (get-char-property (point-min) 'org-marker)))
+            (title (read-from-minibuffer "Title of the new group: "
+                                         nil
+                                         nil nil nil nil 'inherit)))
+       (org-placeholder--capture marker title
+         :after-finalize `(lambda ()
+                            (org-placeholder--maybe-refresh-view ,(buffer-name))
+                            (org-placeholder--goto-captured-in-view)))))))
 
 (defun org-placeholder--goto-captured-in-view ()
   (let ((marker (org-with-point-at org-capture-last-stored-marker
