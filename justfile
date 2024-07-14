@@ -2,7 +2,9 @@ rice-flake := "github:emacs-twist/rice-config"
 
 melpa := "github:akirak/melpa/akirak"
 
-common-options := "--override-input rice-src \"path:$PWD\" --override-input melpa " + quote(melpa)
+lock-dir := ".rice-lock/default"
+
+common-options := "--override-input rice-src \"path:$PWD\" --override-input rice-lock \"path:$PWD/{{ lock-dir }}\" --override-input melpa " + quote(melpa)
 
 emacs-version := "emacs-release-snapshot"
 
@@ -17,6 +19,10 @@ show *OPTIONS:
 # Evaluate an attribute on the flake, e.g. just eval melpaRecipes.
 eval ATTR *OPTIONS:
     nix eval {{rice-flake}}\#{{ATTR}} {{OPTIONS}} {{ common-options }}
+
+# Generate a lock directory
+lock *OPTIONS:
+    nix run github:emacs-twist/rice-init-lock\#lock-with-{{ emacs-version }} {{ common-options }} --impure -- {{ OPTIONS }} {{ lock-dir }}
 
 # Enter a shell for byte-compiling individual source files
 shell-compile:
