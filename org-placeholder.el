@@ -586,15 +586,20 @@ which is suitable for integration with embark package."
         root-heading
         items
         strings
+        subgroup-archivedp
         first-section)
     (cl-labels
         ((emit (&optional no-empty-line)
-           (setq strings (append (thread-last
-                                   items
-                                   (seq-sort (or org-placeholder-sort-function
-                                                 #'ignore))
-                                   (mapcar #'org-ql-view--format-element))
-                                 strings))
+           (if subgroup-archivedp
+               (push (propertize "  (Items in this archived group are not shown)"
+                                 'face 'font-lock-comment-face)
+                     strings)
+             (setq strings (append (thread-last
+                                     items
+                                     (seq-sort (or org-placeholder-sort-function
+                                                   #'ignore))
+                                     (mapcar #'org-ql-view--format-element))
+                                   strings)))
            (if first-section
                (setq first-section nil)
              (unless no-empty-line
@@ -611,7 +616,10 @@ which is suitable for integration with embark package."
                        (scan-subgroups root-level
                                        (+ level 1 (string-to-number str))
                                        (save-excursion (org-end-of-subtree)))
+                     ;; Serialize items in the last subgroup.
                      (emit)
+                     (setq subgroup-archivedp (and (member org-archive-tag (org-get-tags))
+                                                   t))
                      (when-let (olp (seq-drop (org-get-outline-path t t)
                                               (1+ root-level)))
                        (push (thread-first
