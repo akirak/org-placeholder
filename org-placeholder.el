@@ -96,6 +96,14 @@ highlight the current line. If the function is unavailable, this
 feature doesn't work anyway."
   :type 'boolean)
 
+(defface org-placeholder-subgroup-face
+  '((t (:inherit font-lock-doc-face)))
+  "Face for subgroups")
+
+(defface org-placeholder-archived-subgroup-face
+  '((t (:inherit org-placeholder-subgroup-face :strike-through t)))
+  "Face for archived subgroups.")
+
 (defvar org-placeholder-marker-table nil)
 
 ;;;; Common
@@ -623,10 +631,14 @@ which is suitable for integration with embark package."
                      (when-let (olp (seq-drop (org-get-outline-path t t)
                                               (1+ root-level)))
                        (push (thread-first
-                               (format " (%s)" (org-no-properties
-                                                (org-format-outline-path olp)))
-                               (propertize 'face 'font-lock-doc-face
-                                           'org-marker (point-marker)
+                               (concat
+                                " " (propertize (format "(%s)" (org-no-properties
+                                                                (org-format-outline-path olp)))
+                                                'face
+                                                (if subgroup-archivedp
+                                                    'org-placeholder-archived-subgroup-face
+                                                  'org-placeholder-subgroup-face)))
+                               (propertize 'org-marker (point-marker)
                                            'org-agenda-structural-header t
                                            'org-placeholder-formatted-olp
                                            (org-no-properties
