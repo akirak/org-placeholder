@@ -42,6 +42,8 @@
 (declare-function org-ql-view--format-element "ext:org-ql-view")
 (declare-function org-string-equal-ignore-case "org-compat")
 
+(defvar imenu-use-markers)
+(defvar org-capture-last-stored-marker)
 (defvar org-capture-entry)
 (defvar org-capture-initial)
 
@@ -190,7 +192,8 @@ state."
   "Hook run after visiting a node.
 
 This hook is run after `org-placeholder-find-or-create' visits an
-existing node.")
+existing node."
+  :type 'hook)
 
 ;;;###autoload
 (defun org-placeholder-find-or-create (&optional bookmark-name initial-input)
@@ -421,17 +424,19 @@ which is suitable for integration with embark package."
 
     (when pre-capture
       (let ((func (read pre-capture)))
-        (condition-case-unless-debug _
+        (condition-case-unless-debug err
             (if (fboundp func)
                 (funcall func)
-              (error "Unbound function: %s" func)))))
+              (error "Unbound function: %s" func))
+          (error (message "PLACEHOLDER_PRE_CAPTURE is set to an invalid value: %s" err)))))
     (org-capture)
     (when post-capture
       (let ((func (read post-capture)))
-        (condition-case-unless-debug _
+        (condition-case-unless-debug err
             (if (fboundp func)
                 (funcall func)
-              (error "Unbound function: %s" func)))))))
+              (error "Unbound function: %s" func))
+          (error (message "PLACEHOLDER_POST_CAPTURE is set to an invalid value: %s" err)))))))
 
 (defun org-placeholder-map-parents (bookmark-name fn)
   "Call a function at each parent heading of the items."
