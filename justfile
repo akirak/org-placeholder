@@ -1,41 +1,55 @@
-rice-flake := "github:emacs-twist/rice-config"
+# Update this if you have forked rice-config
+rice-config := "github:emacs-twist/rice-config"
 
+# Specify a flake reference to a repository and branch where the package recipe
+# is defined.
 melpa := "github:akirak/melpa/akirak"
 
+# Relative path to the lock directory
 lock-dir := ".rice-lock/default"
 
-common-options := "--override-input rice-src \"path:$PWD\" --override-input rice-lock \"path:$PWD/{{ lock-dir }}\" --override-input melpa " + quote(melpa)
+# This is only to avoid repetition, and you usually don't edit this.
+common-options-without-lock := "--override-input rice-src \"path:$PWD\" --override-input melpa " + quote(melpa)
 
-emacs-version := "emacs-release-snapshot"
+common-options-with-lock := common-options-without-lock + " --override-input rice-lock \"path:$PWD/" + lock-dir + "\""
 
+# The name of an Emacs package from nix-emacs-ci
+emacs := "emacs-release-snapshot"
+
+# Name of the package under test
 package := "org-placeholder"
 
+# Don't edit this
 arch := shell('nix eval --expr builtins.currentSystem --impure --raw')
 
 # Show the flake
 show *OPTIONS:
-    nix flake show {{ rice-flake }} --override-input systems github:nix-systems/{{ arch }} --allow-import-from-derivation {{ OPTIONS }} {{ common-options }}
+    nix flake show {{ rice-config }} {{ OPTIONS }} {{ common-options-with-lock }}
 
 # Evaluate an attribute on the flake, e.g. just eval melpaRecipes.
 eval ATTR *OPTIONS:
-    nix eval {{rice-flake}}\#{{ATTR}} {{OPTIONS}} {{ common-options }}
+    nix eval {{rice-config}}\#{{ATTR}} {{OPTIONS}} {{ common-options-with-lock }}
 
-# Generate a lock directory
+# Generate a lock directory.
 lock *OPTIONS:
-    nix run github:emacs-twist/rice-init-lock\#lock-with-{{ emacs-version }} {{ common-options }} --impure -- {{ OPTIONS }} {{ lock-dir }}
+    mkdir -p "$(dirname {{ lock-dir }})"
+    nix run "{{ rice-config }}?dir=make-lock#lock-with-{{ emacs }}" {{ common-options-without-lock }} --impure -- {{ OPTIONS }} {{ lock-dir }}
 
 # Enter a shell for byte-compiling individual source files
 shell-compile:
-    nix develop {{ rice-flake }}\#{{ emacs-version }}-for-{{ package }} {{ common-options }}
+    nix develop {{ rice-config }}\#{{ emacs }}-for-{{ package }} {{ common-options-with-lock }}
 
 # Re-run byte-compile every time a file is modified
 watch-compile:
-    nix develop {{ rice-flake }}\#{{ emacs-version }}-for-{{ package }} {{ common-options }} -c bash -c 'echo >&2 Watching *.el; ls *.el | entr -p elisp-byte-compile /_'
+    nix develop {{ rice-config }}\#{{ emacs }}-for-{{ package }} {{ common-options-with-lock }} -c bash -c 'echo >&2 Watching *.el; ls *.el | entr -p elisp-byte-compile /_'
 
 # Byte-compile the package
 check-compile:
-    nix build {{ rice-flake }}\#checks.{{ arch }}.{{ package }}-compile-{{ emacs-version }} {{ common-options }} --print-build-logs
+    nix build {{ rice-config }}\#checks.{{ arch }}.{{ package }}-compile-{{ emacs }} {{ common-options-with-lock }} --print-build-logs
 
 # Enter a shell for running tests
 shell-emacs *OPTIONS:
-    nix shell {{ rice-flake }}\#{{ emacs-version }}-with-packages {{ common-options }} {{ OPTIONS }}
+    nix shell {{ rice-config }}\#{{ emacs }}-with-packages {{ common-options-with-lock }} {{ OPTIONS }}
+
+test-buttercup *OPTIONS:
+    nix run {{ rice-config }}\#test-buttercup-with-{{ emacs }} {{ common-options-with-lock }} {{ OPTIONS }}

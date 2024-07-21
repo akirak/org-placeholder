@@ -50,12 +50,6 @@
       repo = "s.el";
       type = "github";
     };
-    transient = {
-      flake = false;
-      owner = "magit";
-      repo = "transient";
-      type = "github";
-    };
     ts = {
       flake = false;
       owner = "alphapapa";
