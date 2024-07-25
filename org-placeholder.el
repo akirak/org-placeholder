@@ -4,7 +4,7 @@
 
 ;; Author: Akira Komamura <akira.komamura@gmail.com>
 ;; Version: 0.1
-;; Package-Requires: ((emacs "29") (org "9.6") (org-ql "0.6"))
+;; Package-Requires: ((emacs "29.1") (org "9.6") (org-ql "0.6"))
 ;; Keywords: hypermedia, outlines
 ;; URL: https://github.com/akirak/org-placeholder
 
