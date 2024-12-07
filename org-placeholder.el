@@ -571,15 +571,19 @@ which is suitable for integration with embark package."
 
 (defun org-placeholder--subtree-type ()
   (org-placeholder--parse-type
-   (org-entry-get nil org-placeholder-bookmark-type-property)))
+   (or (org-entry-get nil org-placeholder-bookmark-type-property)
+       (user-error "The subtree is missing a required property %s"
+                   org-placeholder-bookmark-type-property))))
 
 (defun org-placeholder--buffer-type ()
   (org-placeholder--parse-type
    (save-excursion
      (goto-char (point-min))
-     (if (looking-at-p org-property-drawer-re)
-         (org-entry-get nil org-placeholder-bookmark-type-property)
-       (org-placeholder--find-keyword org-placeholder-bookmark-type-property)))))
+     (or (if (looking-at-p org-property-drawer-re)
+             (org-entry-get nil org-placeholder-bookmark-type-property)
+           (org-placeholder--find-keyword org-placeholder-bookmark-type-property))
+         (user-error "The subtree is missing a required property or keyword %s"
+                     org-placeholder-bookmark-type-property)))))
 
 (defun org-placeholder--parse-type (string)
   (pcase-exhaustive string
