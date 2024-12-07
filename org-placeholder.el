@@ -180,9 +180,9 @@ feature doesn't work anyway."
         (while (re-search-forward org-keyword-regexp bound t)
           (when (org-string-equal-ignore-case keyword (match-string 1))
             (let ((value (match-string-no-properties 2)))
-              (when-let (ret (if (not pred)
-                                 value
-                               (funcall pred value)))
+              (when-let* ((ret (if (not pred)
+                                   value
+                                 (funcall pred value))))
                 (throw 'prop ret)))))))))
 
 ;;;; Find
@@ -234,7 +234,7 @@ existing node."
                       (mapcar #'car (org-placeholder--bookmarks)))))
     (cl-labels
         ((annotator (candidate)
-           (if-let (s (gethash candidate node-parent-table))
+           (if-let* ((s (gethash candidate node-parent-table)))
                (concat " " s)
              ""))
          (group (candidate transform)
@@ -272,7 +272,7 @@ existing node."
                        (heading (format-heading-from-match)))
                    (cond
                     ((< level target-level)
-                     (if-let (str (org-entry-get nil "PLACEHOLDER_LEVEL"))
+                     (if-let* ((str (org-entry-get nil "PLACEHOLDER_LEVEL")))
                          (scan-subgroups root-name root-level
                                          (+ level 1 (string-to-number str))
                                          (save-excursion (org-end-of-subtree)))
@@ -312,7 +312,7 @@ existing node."
                   (scan-subgroups root-name root-level
                                   (+ root-level
                                      2
-                                     (if-let (str (org-entry-get nil "PLACEHOLDER_LEVEL"))
+                                     (if-let* ((str (org-entry-get nil "PLACEHOLDER_LEVEL")))
                                          (string-to-number str)
                                        0))
                                   (save-excursion (org-end-of-subtree)))))
@@ -460,7 +460,7 @@ which is suitable for integration with embark package."
       ((scan-subgroups (root-level target-level bound)
          (while (re-search-forward org-complex-heading-regexp bound t)
            (let ((level (- (match-end 1) (match-beginning 1))))
-             (if-let (str (org-entry-get nil "PLACEHOLDER_LEVEL"))
+             (if-let* ((str (org-entry-get nil "PLACEHOLDER_LEVEL")))
                  (scan-subgroups root-level
                                  (+ level
                                     1
@@ -477,7 +477,7 @@ which is suitable for integration with embark package."
            (pcase-exhaustive type
              (`nested
               (while (re-search-forward regexp1 bound t)
-                (if-let (str (org-entry-get nil "PLACEHOLDER_LEVEL"))
+                (if-let* ((str (org-entry-get nil "PLACEHOLDER_LEVEL")))
                     (scan-subgroups root-level
                                     (+ root-level
                                        2 (string-to-number str))
@@ -644,7 +644,7 @@ which is suitable for integration with embark package."
                (let ((level (org-outline-level)))
                  (cond
                   ((< level target-level)
-                   (if-let (str (org-entry-get nil "PLACEHOLDER_LEVEL"))
+                   (if-let* ((str (org-entry-get nil "PLACEHOLDER_LEVEL")))
                        (scan-subgroups root-level
                                        (+ level 1 (string-to-number str))
                                        (save-excursion (org-end-of-subtree)))
@@ -652,8 +652,8 @@ which is suitable for integration with embark package."
                      (emit)
                      (setq subgroup-archivedp (and (member org-archive-tag (org-get-tags))
                                                    t))
-                     (when-let (olp (seq-drop (org-get-outline-path t t)
-                                              (1+ root-level)))
+                     (when-let* ((olp (seq-drop (org-get-outline-path t t)
+                                                (1+ root-level))))
                        (push (thread-first
                                (concat
                                 " " (propertize (format "(%s)" (org-no-properties
@@ -686,7 +686,7 @@ which is suitable for integration with embark package."
                   (let ((bound (save-excursion (org-end-of-subtree)))
                         (target-level (+ root-level
                                          2
-                                         (if-let (str (org-entry-get nil "PLACEHOLDER_LEVEL"))
+                                         (if-let* ((str (org-entry-get nil "PLACEHOLDER_LEVEL")))
                                              (string-to-number str)
                                            0))))
                     (setq first-section t)
@@ -743,8 +743,8 @@ which is suitable for integration with embark package."
   (interactive nil org-placeholder-view-mode)
   (pcase (or (get-char-property (pos-bol) 'org-placeholder-container)
              (save-excursion
-               (when-let (pos (previous-single-property-change
-                               (point) 'org-placeholder-container))
+               (when-let* ((pos (previous-single-property-change
+                                 (point) 'org-placeholder-container)))
                  (goto-char pos)
                  (get-char-property (pos-bol) 'org-placeholder-container))))
     (`t
@@ -812,7 +812,7 @@ which is suitable for integration with embark package."
         (org-placeholder--highlight-line)))))
 
 (defun org-placeholder--maybe-refresh-view (buffer-name)
-  (when-let (buffer (get-buffer buffer-name))
+  (when-let* ((buffer (get-buffer buffer-name)))
     (with-current-buffer buffer
       (org-placeholder-revert-view))))
 
@@ -886,7 +886,7 @@ This command turns on `tab-bar-mode' and display each view in a tab."
 (defvar org-placeholder-keyword-order nil)
 
 (defun org-placeholder-keyword-order (element)
-  (when-let (kwd (org-element-property :todo-keyword element))
+  (when-let* ((kwd (org-element-property :todo-keyword element)))
     (or (cdr (assoc kwd org-placeholder-keyword-order))
         (let ((order (with-current-buffer
                          (marker-buffer (or (org-element-property :org-marker element)
