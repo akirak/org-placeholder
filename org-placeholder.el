@@ -129,7 +129,7 @@ feature doesn't work anyway."
 ;;;###autoload
 (defun org-placeholder-store-bookmark ()
   "Store a bookmark to a view of the current subtree."
-  (interactive)
+  (interactive nil org-mode)
   (let* ((filename (thread-last
                      (org-base-buffer (current-buffer))
                      (buffer-file-name)
@@ -523,7 +523,7 @@ which is suitable for integration with embark package."
              buffer)))
 
 (defun org-placeholder-revert-view (&rest _args)
-  (interactive)
+  (interactive nil org-placeholder-view-mode)
   (org-placeholder--revert-view
    :marker (get-text-property (point) 'org-marker)))
 
@@ -721,7 +721,7 @@ which is suitable for integration with embark package."
 
 (defun org-placeholder-view-capture ()
   "Add an item to the group at point, or add a subgroup."
-  (interactive)
+  (interactive nil org-placeholder-view-mode)
   (pcase (or (get-char-property (pos-bol) 'org-placeholder-container)
              (save-excursion
                (when-let (pos (previous-single-property-change
@@ -798,7 +798,7 @@ which is suitable for integration with embark package."
       (org-placeholder-revert-view))))
 
 (defun org-placeholder-refile-from-view (&optional arg)
-  (interactive "P")
+  (interactive "P" org-placeholder-view-mode)
   (unless org-placeholder-view-name
     (user-error "Run this command from inside `org-placeholder-view-mode'"))
   (when (org-get-at-bol 'org-agenda-structural-header)
