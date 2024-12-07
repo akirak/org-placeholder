@@ -42,6 +42,8 @@
 (declare-function org-ql-view--format-element "ext:org-ql-view")
 (declare-function org-string-equal-ignore-case "org-compat")
 
+(defconst org-placeholder-bookmark-type-property "PLACEHOLDER_TYPE")
+
 (defvar imenu-use-markers)
 (defvar org-capture-last-stored-marker)
 (defvar org-capture-entry)
@@ -569,15 +571,15 @@ which is suitable for integration with embark package."
 
 (defun org-placeholder--subtree-type ()
   (org-placeholder--parse-type
-   (org-entry-get nil "PLACEHOLDER_TYPE")))
+   (org-entry-get nil org-placeholder-bookmark-type-property)))
 
 (defun org-placeholder--buffer-type ()
   (org-placeholder--parse-type
    (save-excursion
      (goto-char (point-min))
      (if (looking-at-p org-property-drawer-re)
-         (org-entry-get nil "PLACEHOLDER_TYPE")
-       (org-placeholder--find-keyword "PLACEHOLDER_TYPE")))))
+         (org-entry-get nil org-placeholder-bookmark-type-property)
+       (org-placeholder--find-keyword org-placeholder-bookmark-type-property)))))
 
 (defun org-placeholder--parse-type (string)
   (pcase-exhaustive string
