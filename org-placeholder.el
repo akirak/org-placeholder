@@ -42,7 +42,13 @@
 (declare-function org-ql-view--format-element "ext:org-ql-view")
 (declare-function org-string-equal-ignore-case "org-compat")
 
-(defconst org-placeholder-bookmark-type-property "PLACEHOLDER_TYPE")
+(defconst org-placeholder-bookmark-type-property "PLACEHOLDER_TYPE"
+  "Org property that specifies the type of the placeholder at the root entry.")
+
+(defconst org-placeholder-allowed-type-values
+  '("nested"
+    "simple")
+  "Possible values for `org-placeholder-bookmark-type-property'.")
 
 (defvar imenu-use-markers)
 (defvar org-capture-last-stored-marker)
@@ -128,10 +134,17 @@ feature doesn't work anyway."
 
 ;;;; Creating a placeholder bookmark
 
+(add-to-list 'org-property-allowed-value-functions
+             (defun org-placeholder-allowed-value-functions (property)
+               (when (equal property org-placeholder-bookmark-type-property)
+                 org-placeholder-allowed-type-values)))
+
 ;;;###autoload
 (defun org-placeholder-store-bookmark ()
   "Store a bookmark to a view of the current subtree."
   (interactive nil org-mode)
+  (unless (org-entry-get nil org-placeholder-bookmark-type-property)
+    (org-read-property-value org-placeholder-bookmark-type-property))
   (let* ((filename (thread-last
                      (org-base-buffer (current-buffer))
                      (buffer-file-name)
