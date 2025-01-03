@@ -84,6 +84,10 @@ See `org-capture-templates'."
 If this value is non-nil, `org-placeholder-find-or-create'"
   :type 'boolean)
 
+(defcustom org-placeholder-ignored-group-heading-regexp nil
+  "Regular expression for ignored heading groups."
+  :type '(choice string null))
+
 (defcustom org-placeholder-show-archived-entries-in-view nil
   "Whether to show archived entries in views.
 
@@ -683,31 +687,44 @@ which is suitable for integration with embark package."
              (pcase-exhaustive type
                (`nested
                 (while (re-search-forward regexp1 end-of-root t)
-                  (let ((bound (save-excursion (org-end-of-subtree)))
-                        (target-level (+ root-level
-                                         2
-                                         (if-let* ((str (org-entry-get nil "PLACEHOLDER_LEVEL")))
-                                             (string-to-number str)
-                                           0))))
-                    (setq first-section t)
-                    (font-lock-ensure (point) (pos-eol))
-                    (push (thread-first
-                            (org-get-heading t t t t)
-                            (propertize 'org-marker (point-marker)
-                                        'org-agenda-structural-header t
-                                        'org-placeholder-outline-level (1+ root-level)
-                                        'org-placeholder-container (or (= (1+ root-level)
-                                                                          (1- target-level))
-                                                                       'indirect)))
-                          strings)
-                    (scan-subgroups root-level target-level bound))
-                  (push "" strings)))
+                  (catch 'heading
+                    (let ((bound (save-excursion (org-end-of-subtree)))
+                          (target-level (+ root-level
+                                           2
+                                           (if-let* ((str (org-entry-get nil "PLACEHOLDER_LEVEL")))
+                                               (string-to-number str)
+                                             0))))
+                      (setq first-section t)
+                      (font-lock-ensure (point) (pos-eol))
+                      (let ((heading (org-get-heading t t t t)))
+                        (when (and org-placeholder-ignored-group-heading-regexp
+                                   (string-match-p org-placeholder-ignored-group-heading-regexp
+                                                   heading))
+                          (org-end-of-subtree)
+                          (throw 'heading t))
+                        (push (propertize heading
+                                          'org-marker (point-marker)
+                                          'org-agenda-structural-header t
+                                          'org-placeholder-outline-level (1+ root-level)
+                                          'org-placeholder-container (or (= (1+ root-level)
+                                                                            (1- target-level))
+                                                                         'indirect))
+                              strings))
+                      (scan-subgroups root-level target-level bound))
+                    (push "" strings))))
                (`simple
                 (while (re-search-forward regexp1 end-of-root t)
-                  (beginning-of-line)
-                  (push (org-ql--add-markers (org-element-headline-parser))
-                        items)
-                  (end-of-line))
+                  (catch 'heading
+                    (beginning-of-line)
+                    (let ((el (org-element-headline-parser)))
+                      (when (and org-placeholder-ignored-group-heading-regexp
+                                 (string-match-p org-placeholder-ignored-group-heading-regexp
+                                                 (org-element-property :headline el)))
+                        (org-end-of-subtree)
+                        (throw 'heading t))
+                      (push (org-ql--add-markers el)
+                            items))
+                    (end-of-line)))
                 (setq strings (thread-last
                                 items
                                 (seq-sort (or org-placeholder-sort-function
