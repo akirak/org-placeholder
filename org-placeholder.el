@@ -270,6 +270,7 @@ existing node."
                  (olp-string nil))
              (while (re-search-forward org-complex-heading-regexp bound t)
                (if (and org-placeholder-ignored-group-heading-regexp
+                        (match-string 4)
                         (string-match-p org-placeholder-ignored-group-heading-regexp (match-string 4)))
                    (org-end-of-subtree)
                  (unless (save-match-data (org-in-archived-heading-p))
