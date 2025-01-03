@@ -269,45 +269,48 @@ existing node."
            (let ((group-heading (org-no-properties (org-get-heading t t t t)))
                  (olp-string nil))
              (while (re-search-forward org-complex-heading-regexp bound t)
-               (unless (save-match-data (org-in-archived-heading-p))
-                 (let ((level (- (match-end 1)
-                                 (match-beginning 1)))
-                       (marker (copy-marker (match-beginning 0)))
-                       (heading (format-heading-from-match)))
-                   (cond
-                    ((< level target-level)
-                     (if-let* ((str (org-entry-get nil "PLACEHOLDER_LEVEL")))
-                         (scan-subgroups root-name root-level
-                                         (+ level 1 (string-to-number str))
-                                         (save-excursion (org-end-of-subtree)))
-                       (let ((olp (org-get-outline-path t t)))
-                         (setq olp-string
-                               (org-no-properties
-                                (org-format-outline-path
-                                 (seq-drop olp (1+ root-level))))))))
-                    ((= level target-level)
-                     (push heading candidates)
-                     (puthash heading olp-string node-parent-table)
-                     (puthash heading
-                              (if bookmark-name
-                                  group-heading
-                                (format "%s: %s" root-name group-heading))
-                              node-group-table)
-                     (puthash heading marker org-placeholder-marker-table))
-                    (org-placeholder-search-subtrees
-                     (let ((this-olp-string (thread-first
-                                              (org-get-outline-path t t)
-                                              (seq-drop (1- target-level))
-                                              (org-format-outline-path)
-                                              (org-no-properties))))
-                       (push this-olp-string candidates)
-                       (puthash this-olp-string olp-string node-parent-table)
-                       (puthash this-olp-string
+               (if (and org-placeholder-ignored-group-heading-regexp
+                        (string-match-p org-placeholder-ignored-group-heading-regexp (match-string 4)))
+                   (org-end-of-subtree)
+                 (unless (save-match-data (org-in-archived-heading-p))
+                   (let ((level (- (match-end 1)
+                                   (match-beginning 1)))
+                         (marker (copy-marker (match-beginning 0)))
+                         (heading (format-heading-from-match)))
+                     (cond
+                      ((< level target-level)
+                       (if-let* ((str (org-entry-get nil "PLACEHOLDER_LEVEL")))
+                           (scan-subgroups root-name root-level
+                                           (+ level 1 (string-to-number str))
+                                           (save-excursion (org-end-of-subtree)))
+                         (let ((olp (org-get-outline-path t t)))
+                           (setq olp-string
+                                 (org-no-properties
+                                  (org-format-outline-path
+                                   (seq-drop olp (1+ root-level))))))))
+                      ((= level target-level)
+                       (push heading candidates)
+                       (puthash heading olp-string node-parent-table)
+                       (puthash heading
                                 (if bookmark-name
                                     group-heading
                                   (format "%s: %s" root-name group-heading))
                                 node-group-table)
-                       (puthash this-olp-string marker org-placeholder-marker-table)))))))))
+                       (puthash heading marker org-placeholder-marker-table))
+                      (org-placeholder-search-subtrees
+                       (let ((this-olp-string (thread-first
+                                                (org-get-outline-path t t)
+                                                (seq-drop (1- target-level))
+                                                (org-format-outline-path)
+                                                (org-no-properties))))
+                         (push this-olp-string candidates)
+                         (puthash this-olp-string olp-string node-parent-table)
+                         (puthash this-olp-string
+                                  (if bookmark-name
+                                      group-heading
+                                    (format "%s: %s" root-name group-heading))
+                                  node-group-table)
+                         (puthash this-olp-string marker org-placeholder-marker-table))))))))))
          (run (type root-name root-level end-of-root)
            (let ((regexp1 (org-placeholder--regexp-for-level (1+ root-level))))
              (pcase-exhaustive type
@@ -464,18 +467,21 @@ which is suitable for integration with embark package."
       ((scan-subgroups (root-level target-level bound)
          (while (re-search-forward org-complex-heading-regexp bound t)
            (let ((level (- (match-end 1) (match-beginning 1))))
-             (if-let* ((str (org-entry-get nil "PLACEHOLDER_LEVEL")))
-                 (scan-subgroups root-level
-                                 (+ level
-                                    1
-                                    (string-to-number str))
-                                 (save-excursion (org-end-of-subtree)))
-               (when (and (= (1- target-level)
-                             level)
-                          (not (org-in-archived-heading-p)))
-                 (save-excursion
-                   (beginning-of-line)
-                   (funcall fn root-level)))))))
+             (if (and org-placeholder-ignored-group-heading-regexp
+                      (string-match-p org-placeholder-ignored-group-heading-regexp (match-string 4)))
+                 (org-end-of-subtree)
+               (if-let* ((str (org-entry-get nil "PLACEHOLDER_LEVEL")))
+                   (scan-subgroups root-level
+                                   (+ level
+                                      1
+                                      (string-to-number str))
+                                   (save-excursion (org-end-of-subtree)))
+                 (when (and (= (1- target-level)
+                               level)
+                            (not (org-in-archived-heading-p)))
+                   (save-excursion
+                     (beginning-of-line)
+                     (funcall fn root-level))))))))
        (f (type root-level bound)
          (let ((regexp1 (org-placeholder--regexp-for-level (1+ root-level))))
            (pcase-exhaustive type
