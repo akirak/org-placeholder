@@ -467,9 +467,11 @@ which is suitable for integration with embark package."
   (cl-labels
       ((scan-subgroups (root-level target-level bound)
          (while (re-search-forward org-complex-heading-regexp bound t)
-           (let ((level (- (match-end 1) (match-beginning 1))))
+           (let ((level (- (match-end 1) (match-beginning 1)))
+                 (heading (match-string 4)))
              (if (and org-placeholder-ignored-group-heading-regexp
-                      (string-match-p org-placeholder-ignored-group-heading-regexp (match-string 4)))
+                      heading
+                      (string-match-p org-placeholder-ignored-group-heading-regexp heading))
                  (org-end-of-subtree)
                (if-let* ((str (org-entry-get nil "PLACEHOLDER_LEVEL")))
                    (scan-subgroups root-level
