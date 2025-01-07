@@ -708,6 +708,7 @@ which is suitable for integration with embark package."
                       (font-lock-ensure (point) (pos-eol))
                       (let ((heading (org-get-heading t t t t)))
                         (when (and org-placeholder-ignored-group-heading-regexp
+                                   heading
                                    (string-match-p org-placeholder-ignored-group-heading-regexp
                                                    heading))
                           (org-end-of-subtree)
