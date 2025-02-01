@@ -957,19 +957,24 @@ This command turns on `tab-bar-mode' and display each view in a tab."
     (add-to-list 'text-property-default-nonsticky
                  '(org-placeholder-folded . t))))
 
-(defun org-placeholder-toggle-fold ()
+(defun org-placeholder-toggle-fold (&optional arg)
   "Toggle folding of the current section."
-  (interactive)
-  (if (or (get-char-property (point) 'org-placeholder-folded)
-          (save-excursion (org-placeholder--folding-start)))
-      (org-placeholder-open-fold)
-    (org-placeholder-close-fold)))
+  (interactive "P")
+  (pcase arg
+    ('(16)
+     (org-placeholder-close-all-folds))
+    (_ (if (or (get-char-property (point) 'org-placeholder-folded)
+               (save-excursion (org-placeholder--folding-start)))
+           (org-placeholder-open-fold)
+         (org-placeholder-close-fold)))))
 
 (defun org-placeholder--foldable-p (&optional pos)
   "Return non-nil if the section at POS is foldable."
   (get-char-property (or pos (point)) 'org-placeholder-container))
 
 (defun org-placeholder--folding-start ()
+  "Return a point where folding starts and move the cursor to the
+containing line."
   (when (org-placeholder--foldable-p)
     (beginning-of-line 2))
   (let ((begin (next-single-property-change (point) 'org-placeholder-folded
@@ -1007,30 +1012,63 @@ This command turns on `tab-bar-mode' and display each view in a tab."
 (defun org-placeholder--compare-level (current-level value)
   (and value (<= value current-level)))
 
-(defun org-placeholder-close-fold ()
-  "Fold the current section."
+(defun org-placeholder-close-fold (&optional state)
+  "Fold the current section.
+
+If STATE is nested, the section is closed as nested. When the nested
+section is opened, its children will remain closed.
+
+When called non-interactively, this function returns the bounds of the
+folded region."
   (interactive nil org-placeholder-view-mode)
   (pcase (org-placeholder--foldable-region)
     (`(,begin . ,end)
      (let ((inhibit-read-only t))
-       (add-text-properties begin end '(org-placeholder-folded t display "..."))))
+       (add-text-properties begin end (list 'org-placeholder-folded (or state t)
+                                            'display "..."))
+       (cons begin end)))
     (_ (user-error "Not foldable"))))
 
 (defun org-placeholder-open-fold ()
   "Unfold the current section."
   (interactive nil org-placeholder-view-mode)
   (let ((inhibit-read-only t))
-    (if (get-char-property (point) 'org-placeholder-folded)
-        (remove-text-properties (or (previous-single-property-change (point) 'org-placeholder-folded)
-                                    (point))
-                                (next-single-property-change (point) 'org-placeholder-folded)
-                                '(org-placeholder-folded t display nil))
+    (if-let* ((state (get-char-property (point) 'org-placeholder-folded)))
+        (let ((begin (or (previous-single-property-change (point) 'org-placeholder-folded)
+                         (point)))
+              (end (next-single-property-change (point) 'org-placeholder-folded)))
+          (remove-text-properties begin end '(org-placeholder-folded t display nil))
+          (when (eq state 'nested)
+            (org-placeholder-close-all-folds begin end)))
       (save-excursion
         (if-let* ((begin (org-placeholder--folding-start)))
-            (remove-text-properties begin
-                                    (next-single-property-change begin 'org-placeholder-folded)
-                                    '(org-placeholder-folded t display nil))
+            (let ((state (get-char-property begin 'org-placeholder-folded))
+                  (end (next-single-property-change begin 'org-placeholder-folded)))
+              (remove-text-properties begin end '(org-placeholder-folded t display nil))
+              (when (eq state 'nested)
+                (org-placeholder-close-all-folds begin end)))
           (user-error "Not folded or foldable"))))))
+
+(defun org-placeholder-close-all-folds (&optional begin end)
+  "Close all top-level folds in the current buffer.
+
+If BEGIN and END are points, close folds inside the region.
+"
+  (interactive nil org-placeholder-view-mode)
+  (save-excursion
+    (goto-char (or begin (point-min)))
+    (catch 'fold-search-abort
+      (while-let ((match (text-property-search-forward 'org-placeholder-outline-level)))
+        (when (and end (> (prop-match-beginning match) end))
+          (throw 'fold-search-abort t))
+        (goto-char (prop-match-beginning match))
+        ;; There can be non-foldable sections, i.e. empty sections, and scanning
+        ;; should continue even with such items.
+        (pcase (ignore-errors (org-placeholder-close-fold 'nested))
+          (`(,_ . ,end)
+           (goto-char end))
+          (_
+           (end-of-line)))))))
 
 ;;;; Embark integration
 
