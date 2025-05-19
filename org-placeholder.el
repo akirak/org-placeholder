@@ -42,6 +42,17 @@
 (declare-function org-ql-view--format-element "ext:org-ql-view")
 (declare-function org-string-equal-ignore-case "org-compat")
 
+(defvar imenu-use-markers)
+(defvar org-capture-last-stored-marker)
+(defvar org-capture-entry)
+(defvar org-capture-initial)
+
+;;;; Group and variables
+
+(defgroup org-placeholder nil
+  ""
+  :group 'org)
+
 (defconst org-placeholder-bookmark-type-property "PLACEHOLDER_TYPE"
   "Org property that specifies the type of the placeholder at the root entry.")
 
@@ -49,15 +60,6 @@
   '("nested"
     "simple")
   "Possible values for `org-placeholder-bookmark-type-property'.")
-
-(defvar imenu-use-markers)
-(defvar org-capture-last-stored-marker)
-(defvar org-capture-entry)
-(defvar org-capture-initial)
-
-(defgroup org-placeholder nil
-  ""
-  :group 'org)
 
 (defcustom org-placeholder-sort-function
   #'org-placeholder-default-sort
