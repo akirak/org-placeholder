@@ -56,7 +56,7 @@
   ""
   :group 'org)
 
-(defconst org-rooted-bookmark-type-property "PLACEHOLDER_TYPE"
+(defconst org-rooted-bookmark-type-property "ROOTED_TYPE"
   "Org property that specifies the type of the placeholder at the root entry.")
 
 (defconst org-rooted-allowed-type-values
@@ -286,7 +286,7 @@ existing node."
                            (heading (format-heading-from-match)))
                        (cond
                         ((< level target-level)
-                         (if-let* ((str (org-entry-get nil "PLACEHOLDER_LEVEL")))
+                         (if-let* ((str (org-entry-get nil "ROOTED_LEVEL")))
                              (scan-subgroups root-name root-level
                                              (+ level 1 (string-to-number str))
                                              (save-excursion (org-end-of-subtree)))
@@ -326,7 +326,7 @@ existing node."
                   (scan-subgroups root-name root-level
                                   (+ root-level
                                      2
-                                     (if-let* ((str (org-entry-get nil "PLACEHOLDER_LEVEL")))
+                                     (if-let* ((str (org-entry-get nil "ROOTED_LEVEL")))
                                          (string-to-number str)
                                        0))
                                   (save-excursion (org-end-of-subtree)))))
@@ -431,9 +431,9 @@ which is suitable for integration with embark package."
   (pcase-let*
       ((`(,template ,pre-capture ,post-capture)
         (org-with-point-at marker
-          (list (org-entry-get marker "PLACEHOLDER_CAPTURE_TEMPLATE" t)
-                (org-entry-get marker "PLACEHOLDER_PRE_CAPTURE" t)
-                (org-entry-get marker "PLACEHOLDER_POST_CAPTURE" t))))
+          (list (org-entry-get marker "ROOTED_CAPTURE_TEMPLATE" t)
+                (org-entry-get marker "ROOTED_PRE_CAPTURE" t)
+                (org-entry-get marker "ROOTED_POST_CAPTURE" t))))
        (file (org-with-point-at marker
                (when (org-before-first-heading-p)
                  (buffer-file-name))))
@@ -457,7 +457,7 @@ which is suitable for integration with embark package."
             (if (fboundp func)
                 (funcall func)
               (error "Unbound function: %s" func))
-          (error (message "PLACEHOLDER_PRE_CAPTURE is set to an invalid value: %s" err)))))
+          (error (message "ROOTED_PRE_CAPTURE is set to an invalid value: %s" err)))))
     (org-capture)
     (when post-capture
       (let ((func (read post-capture)))
@@ -465,7 +465,7 @@ which is suitable for integration with embark package."
             (if (fboundp func)
                 (funcall func)
               (error "Unbound function: %s" func))
-          (error (message "PLACEHOLDER_POST_CAPTURE is set to an invalid value: %s" err)))))))
+          (error (message "ROOTED_POST_CAPTURE is set to an invalid value: %s" err)))))))
 
 (defun org-rooted-map-parents (bookmark-name fn)
   "Call a function at each parent heading of the items."
@@ -479,7 +479,7 @@ which is suitable for integration with embark package."
                       heading
                       (string-match-p org-rooted-ignored-group-heading-regexp heading))
                  (org-end-of-subtree)
-               (if-let* ((str (org-entry-get nil "PLACEHOLDER_LEVEL")))
+               (if-let* ((str (org-entry-get nil "ROOTED_LEVEL")))
                    (scan-subgroups root-level
                                    (+ level
                                       1
@@ -496,7 +496,7 @@ which is suitable for integration with embark package."
            (pcase-exhaustive type
              (`nested
               (while (re-search-forward regexp1 bound t)
-                (if-let* ((str (org-entry-get nil "PLACEHOLDER_LEVEL")))
+                (if-let* ((str (org-entry-get nil "ROOTED_LEVEL")))
                     (scan-subgroups root-level
                                     (+ root-level
                                        2 (string-to-number str))
@@ -593,7 +593,7 @@ This method should be called in the output buffer."
                (let ((level (org-outline-level)))
                  (cond
                   ((< level target-level)
-                   (if-let* ((str (org-entry-get nil "PLACEHOLDER_LEVEL")))
+                   (if-let* ((str (org-entry-get nil "ROOTED_LEVEL")))
                        (scan-subgroups root-level
                                        (+ level 1 (string-to-number str))
                                        (save-excursion (org-end-of-subtree)))
@@ -625,7 +625,7 @@ This method should be called in the output buffer."
                     (let ((bound (save-excursion (org-end-of-subtree)))
                           (target-level (+ root-level
                                            2
-                                           (if-let* ((str (org-entry-get nil "PLACEHOLDER_LEVEL")))
+                                           (if-let* ((str (org-entry-get nil "ROOTED_LEVEL")))
                                                (string-to-number str)
                                              0))))
                       (setq first-section t)
