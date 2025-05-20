@@ -1265,8 +1265,8 @@ This should be matched against \\='org-rooted-item category."
   )
 
 (cl-defmethod org-rooted-sink-emit-items ((sink org-rooted-json-exporter)
-                                               items
-                                               &optional archivedp)
+                                          items
+                                          &optional archivedp)
   (dolist (element items)
     (let ((raw-title (org-element-property :title element)))
       (org-rooted--append-jsonl-entry sink 'entries-filename
