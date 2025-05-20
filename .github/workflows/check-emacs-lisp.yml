@@ -14,7 +14,7 @@ jobs:
     uses: emacs-twist/elisp-workflows/.github/workflows/compile-and-test.yml@master
     with:
       # rice-config: github:emacs-twist/rice-config
-      melpa: github:akirak/melpa/akirak
+      melpa: github:akirak/melpa/org-rooted
       systems: github:nix-systems/x86_64-linux
       # lock-dir: .rice-lock/default
 

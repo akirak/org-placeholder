@@ -3,7 +3,7 @@ rice-config := "github:emacs-twist/rice-config"
 
 # Specify a flake reference to a repository and branch where the package recipe
 # is defined.
-melpa := "github:akirak/melpa/akirak"
+melpa := "github:akirak/melpa/org-rooted"
 
 # Relative path to the lock directory
 lock-dir := ".rice-lock/default"
@@ -17,7 +17,7 @@ common-options-with-lock := common-options-without-lock + " --override-input ric
 emacs := "emacs-release-snapshot"
 
 # Name of the package under test
-package := "org-placeholder"
+package := "org-rooted"
 
 # Don't edit this
 arch := shell('nix eval --expr builtins.currentSystem --impure --raw')
