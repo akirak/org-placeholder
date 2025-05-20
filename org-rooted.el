@@ -1276,7 +1276,8 @@ This should be matched against \\='org-rooted-item category."
                                       (match-string 1 raw-title)))
                         (href . ,(match-string 1 raw-title)))
                     `((title . ,raw-title))))
-                `((olp . ,(thread-first
+                `((archived . ,(or archivedp :false))
+                  (olp . ,(thread-first
                             (org-with-point-at (org-element-property :org-hd-marker element)
                               (org-get-outline-path nil t))
                             (seq-drop (length (oref sink root-olp)))
