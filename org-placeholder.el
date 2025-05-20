@@ -1188,5 +1188,164 @@ writing your own transformer.
 This should be matched against \\='org-placeholder-item category."
   (gethash item org-placeholder-marker-table))
 
+;;;; Exporting
+
+(defclass org-placeholder-json-exporter (org-placeholder-sink-class)
+  ((root-filename
+    :initarg :root-filename :initform "root.json" :type string)
+   (entries-filename
+    :initarg :entries-filename :initform "entries.jsonl" :type string)
+   (sections-filename
+    :initarg :sections-filename :initform "sections.jsonl" :type string)
+   (output-filename
+    :initarg :output-filename :type string)
+   (temporary-directory
+    :initform nil :type (or string null))
+   (root-olp :initform nil :type list)
+   (content-format
+    :initarg :content-format :initform gfm :type symbol
+    :documentation
+    "The format of the content. It is a symbol indicating the format or nil. gfm and org are supported.")))
+
+(defun org-placeholder--file-in-temp-dir (sink slot)
+  (file-name-concat (or (oref sink temporary-directory)
+                        (error "The temporary directory must not be null"))
+                    (slot-value sink slot)))
+
+(defun org-placeholder--append-jsonl-entry (sink slot object)
+  (declare (indent 2))
+  (with-temp-buffer
+    (insert (json-serialize (cl-remove-if #'null object :key #'cdr))
+            "\n")
+    (let ((filename (org-placeholder--file-in-temp-dir sink slot))
+          (coding-system-for-write 'utf-8-unix)
+          message-log-max)
+      (write-region (point-min) (point-max) filename t))))
+
+(cl-defmethod org-placeholder-sink-initialize ((sink org-placeholder-json-exporter)
+                                               root)
+  (let ((temp-dir (thread-first
+                    (format "mktemp -d -t org-placeholder-export-XXX")
+                    (shell-command-to-string)
+                    (string-trim))))
+    (condition-case _
+        (let ((root-data (append (cl-etypecase root
+                                   (marker
+                                    `((title . ,(org-entry-get nil "ITEM"))
+                                      (olp . ,(seq-into (org-get-outline-path t)
+                                                        'vector))
+                                      (tags . ,(seq-into (org-get-tags)
+                                                         'vector))
+                                      (states . ,(seq-into org-todo-keywords-1
+                                                           'vector))))
+                                   (buffer
+                                    `((title . ,(or (org-placeholder--find-keyword "title")
+                                                    (buffer-name)))
+                                      (tags . ,(seq-into org-file-tags
+                                                         'vector))
+                                      (filename . ,(buffer-file-name))
+                                      (states . ,(seq-into org-todo-keywords-1
+                                                           'vector)))))
+                                 (org-placeholder--json-encode-properties
+                                  (org-entry-properties nil 'standard)))))
+          (oset sink temporary-directory temp-dir)
+          (oset sink root-olp (alist-get 'olp root-data))
+          (with-temp-buffer
+            (insert (json-serialize root-data))
+            (let ((filename (org-placeholder--file-in-temp-dir sink 'root-filename))
+                  (coding-system-for-write 'utf-8-unix)
+                  message-log-max)
+              (write-region (point-min) (point-max) filename))))
+      (error (delete-directory temp-dir t)))))
+
+(cl-defmethod org-placeholder-sink-start-section ((sink org-placeholder-json-exporter)
+                                                  heading
+                                                  &key marker level indirect)
+  (org-placeholder--append-jsonl-entry sink 'sections-filename
+    (append `((olp . ,(vector heading))
+              (indirect . ,(or indirect :false))
+              (level . ,level))
+            (org-placeholder--exported-section-properties marker))))
+
+(cl-defmethod org-placeholder-sink-start-subsection ((sink org-placeholder-json-exporter)
+                                                     olp
+                                                     &key marker level indirect
+                                                     archivedp)
+  (org-placeholder--append-jsonl-entry sink 'sections-filename
+    (append `((olp . ,(apply #'vector olp))
+              (indirect . ,(or indirect :false))
+              (level . ,level)
+              (archived . ,(or archivedp :false)))
+            (org-placeholder--exported-section-properties marker))))
+
+(defun org-placeholder--exported-section-properties (marker))
+
+(cl-defmethod org-placeholder-sink-separator ((_ org-placeholder-json-exporter))
+  ;; noop, as there is no notion of separator in jsonl
+  )
+
+(cl-defmethod org-placeholder-sink-emit-items ((sink org-placeholder-json-exporter)
+                                               items
+                                               &optional archivedp)
+  (dolist (element items)
+    (let ((raw-title (org-element-property :title element)))
+      (org-placeholder--append-jsonl-entry sink 'entries-filename
+        (append (save-match-data
+                  (if (string-match org-link-bracket-re raw-title)
+                      `((title . ,(or (match-string 2 raw-title)
+                                      (match-string 1 raw-title)))
+                        (href . ,(match-string 1 raw-title)))
+                    `((title . ,raw-title))))
+                `((olp . ,(thread-first
+                            (org-with-point-at (org-element-property :org-hd-marker element)
+                              (org-get-outline-path nil t))
+                            (seq-drop (length (oref sink root-olp)))
+                            (seq-into 'vector)))))))))
+
+(cl-defmethod org-placeholder-sink-finalize ((sink org-placeholder-json-exporter))
+  ;; Write to the file
+  (unwind-protect
+      (let* ((filename (convert-standard-filename
+                        (expand-file-name (oref sink output-filename))))
+             (buffer-name "*org-placeholder-tar*"))
+        (when-let* ((buffer (get-buffer buffer-name)))
+          (kill-buffer buffer))
+        (with-current-buffer (generate-new-buffer buffer-name)
+          (unless (zerop (call-process "tar" nil t nil
+                                       "cvzf"
+                                       filename
+                                       "-C" (oref sink temporary-directory)
+                                       (oref sink root-filename)
+                                       (oref sink entries-filename)
+                                       (oref sink sections-filename)))
+            (display-buffer (current-buffer))
+            (error "Failed to create the tarball"))))
+    (delete-directory (oref sink temporary-directory) t)))
+
+(defun org-placeholder--json-encode-properties (alist)
+  (mapcar (lambda (cell)
+            (cons (intern (downcase (car cell)))
+                  (cdr cell)))
+          alist))
+
+;;;###autoload
+(defun org-placeholder-export (bookmark filename &optional force)
+  "Export BOOKMARK to a tarball of JSON-L files."
+  (interactive (list (org-placeholder-read-bookmark-name "Export a view: ")
+                     (read-file-name "Export to (*.tar.gz): ")
+                     current-prefix-arg))
+  (when (and (file-exists-p filename)
+             (not force))
+    (user-error "File %s already exists" filename))
+  (let* ((bookmark-name (if (stringp bookmark)
+                            bookmark
+                          (car bookmark)))
+         (exporter (make-instance 'org-placeholder-json-exporter
+                                  :output-filename filename)))
+    (org-placeholder-write-to-sink (or (org-placeholder-bookmark-root bookmark-name)
+                                       (error "bookmark-name is nil"))
+                                   exporter)
+    (message "Successfully exported to %s" filename)))
+
 (provide 'org-placeholder)
 ;;; org-placeholder.el ends here
