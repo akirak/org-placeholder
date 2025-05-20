@@ -532,7 +532,7 @@ which is suitable for integration with embark package."
           :documentation "Items in the current section.")))
 
 (cl-defmethod org-rooted-sink-initialize ((sink org-rooted-sink-class)
-                                               _root)
+                                          _root)
   "Initialize the sink before feeding data into it.
 
 This method should be called in the output buffer."
@@ -550,7 +550,7 @@ This method should be called in the output buffer."
   (error "abstract method"))
 
 (cl-defmethod org-rooted-sink-flush (sink
-                                          &optional archivedp)
+                                     &optional archivedp)
   (let ((items (thread-last
                  (oref sink items)
                  (seq-sort (or org-rooted-sort-function
@@ -705,22 +705,22 @@ This method should be called in the output buffer."
                   (insert title "\n\n")))))))
 
 (cl-defmethod org-rooted-sink-start-section ((sink org-rooted-agenda-view)
-                                                  heading
-                                                  &key marker level indirect)
+                                             heading
+                                             &key marker level indirect)
   (oset sink strings
         (cons (propertize heading
                           'org-marker marker
                           'org-agenda-structural-header t
                           'org-rooted-outline-level level
                           'org-rooted-container (if indirect
-                                                         'indirect
-                                                       t))
+                                                    'indirect
+                                                  t))
               (oref sink strings))))
 
 (cl-defmethod org-rooted-sink-start-subsection ((sink org-rooted-agenda-view)
-                                                     olp
-                                                     &key marker level indirect
-                                                     archivedp)
+                                                olp
+                                                &key marker level indirect
+                                                archivedp)
   (oset sink strings
         (cons (thread-first
                 (concat
@@ -742,8 +742,8 @@ This method should be called in the output buffer."
               (oref sink strings))))
 
 (cl-defmethod org-rooted-sink-emit-items ((sink org-rooted-agenda-view)
-                                               items
-                                               &optional archivedp)
+                                          items
+                                          &optional archivedp)
   (require 'org-ql-view)
   (with-current-buffer (oref sink buffer)
     (let ((strings (nreverse (oref sink strings))))
