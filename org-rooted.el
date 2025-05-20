@@ -1183,7 +1183,7 @@ This should be matched against \\='org-rooted-item category."
     :initform nil :type (or string null))
    (root-olp :initform nil :type list)
    (content-format
-    :initarg :content-format :initform gfm :type symbol
+    :initarg :content-format :initform 'gfm :type symbol
     :documentation
     "The format of the content. It is a symbol indicating the format or nil. gfm and org are supported.")))
 
@@ -1258,7 +1258,7 @@ This should be matched against \\='org-rooted-item category."
               (archived . ,(or archivedp :false)))
             (org-rooted--exported-section-properties marker))))
 
-(defun org-rooted--exported-section-properties (marker))
+(defun org-rooted--exported-section-properties (_marker))
 
 (cl-defmethod org-rooted-sink-separator ((_ org-rooted-json-exporter))
   ;; noop, as there is no notion of separator in jsonl
