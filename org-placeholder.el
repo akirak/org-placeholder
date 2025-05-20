@@ -35,12 +35,15 @@
 (require 'bookmark)
 (require 'org)
 (require 'org-agenda)
+(require 'eieio)
 
 (declare-function org-element-property "org-element")
 (declare-function org-element-headline-parser "org-element")
 (declare-function org-ql--add-markers "ext:org-ql")
 (declare-function org-ql-view--format-element "ext:org-ql-view")
 (declare-function org-string-equal-ignore-case "org-compat")
+(declare-function org-ql--add-markers "ext:org-ql")
+(declare-function org-ql-view--format-element "ext:org-ql-view")
 
 (defvar imenu-use-markers)
 (defvar org-capture-last-stored-marker)
@@ -520,7 +523,252 @@ which is suitable for integration with embark package."
                       0
                       nil))))))))
 
-;;;; Views like what org-ql-view provides
+;;;; Sink class for generalized views
+
+(defclass org-placeholder-sink-class nil
+  ((source-type :initform nil :type symbol
+                :documentation "Type of the source subtree (simple or nested).")
+   (items :initform nil :type list
+          :documentation "Items in the current section.")))
+
+(cl-defmethod org-placeholder-sink-initialize ((sink org-placeholder-sink-class)
+                                               _root)
+  "Initialize the sink before feeding data into it.
+
+This method should be called in the output buffer."
+  (oset sink items nil))
+
+(cl-defgeneric org-placeholder-sink-start-section (sink
+                                                   heading
+                                                   &key marker level indirect)
+  (error "abstract method"))
+
+(cl-defgeneric org-placeholder-sink-start-subsection (sink
+                                                      olp
+                                                      &key marker level indirect
+                                                      archivedp)
+  (error "abstract method"))
+
+(cl-defmethod org-placeholder-sink-flush (sink
+                                          &optional archivedp)
+  (let ((items (thread-last
+                 (oref sink items)
+                 (seq-sort (or org-placeholder-sort-function
+                               #'ignore)))))
+    (org-placeholder-sink-emit-items sink items archivedp)
+    (oset sink items nil)))
+
+(cl-defgeneric org-placeholder-sink-emit-items (sink
+                                                items
+                                                &optional archivedp)
+  (error "abstract method"))
+
+(cl-defgeneric org-placeholder-sink-finalize (sink)
+  "Finalize the sink and flash the result into the current buffer."
+  (error "abstract method"))
+
+(defun org-placeholder-write-to-sink (root sink)
+  ;; For `org-ql--add-markers'.
+  (require 'org-ql)
+  (let ((type (cl-etypecase root
+                (marker (org-with-point-at root
+                          (org-placeholder--subtree-type)))
+                (buffer (with-current-buffer root
+                          (org-with-wide-buffer
+                           (org-placeholder--buffer-type))))))
+        subgroup-archivedp
+        first-section)
+    (oset sink source-type type)
+    (cl-labels
+        ((emit (&optional no-empty-line)
+           (org-placeholder-sink-flush sink subgroup-archivedp)
+           (if first-section
+               (setq first-section nil)
+             (unless no-empty-line
+               (org-placeholder-sink-separator sink))))
+         (scan-subgroups (root-level target-level bound)
+           (while (re-search-forward org-complex-heading-regexp bound t)
+             (when (or org-placeholder-show-archived-entries-in-view
+                       (not (org-in-archived-heading-p)))
+               (let ((level (org-outline-level)))
+                 (cond
+                  ((< level target-level)
+                   (if-let* ((str (org-entry-get nil "PLACEHOLDER_LEVEL")))
+                       (scan-subgroups root-level
+                                       (+ level 1 (string-to-number str))
+                                       (save-excursion (org-end-of-subtree)))
+                     ;; Serialize items in the last subgroup.
+                     (emit)
+                     (setq subgroup-archivedp (and (member org-archive-tag (org-get-tags))
+                                                   t))
+                     (when-let* ((olp (seq-drop (org-get-outline-path t t)
+                                                (1+ root-level))))
+                       (org-placeholder-sink-start-subsection
+                        sink olp
+                        :marker (point-marker)
+                        :level level
+                        :indirect (not (= level (1- target-level)))
+                        :archivedp subgroup-archivedp))))
+                  ((= level target-level)
+                   (beginning-of-line)
+                   (oset sink items
+                         (cons (org-ql--add-markers (org-element-at-point))
+                               (oref sink items)))
+                   (end-of-line))))))
+           (emit t))
+         (run (root-level end-of-root)
+           (let ((regexp1 (org-placeholder--regexp-for-level (1+ root-level))))
+             (pcase-exhaustive type
+               (`nested
+                (while (re-search-forward regexp1 end-of-root t)
+                  (catch 'heading
+                    (let ((bound (save-excursion (org-end-of-subtree)))
+                          (target-level (+ root-level
+                                           2
+                                           (if-let* ((str (org-entry-get nil "PLACEHOLDER_LEVEL")))
+                                               (string-to-number str)
+                                             0))))
+                      (setq first-section t)
+                      (font-lock-ensure (point) (pos-eol))
+                      (let ((heading (org-get-heading t t t t)))
+                        (when (and org-placeholder-ignored-group-heading-regexp
+                                   heading
+                                   (string-match-p org-placeholder-ignored-group-heading-regexp
+                                                   heading))
+                          (org-end-of-subtree)
+                          (throw 'heading t))
+                        (org-placeholder-sink-start-section
+                         sink heading
+                         :marker (point-marker)
+                         :level (1+ root-level)
+                         :indirect (not (= (1+ root-level)
+                                           (1- target-level)))))
+                      (scan-subgroups root-level target-level bound))
+                    (org-placeholder-sink-separator sink))))
+               (`simple
+                (while (re-search-forward regexp1 end-of-root t)
+                  (catch 'heading
+                    (beginning-of-line)
+                    (when (and org-placeholder-ignored-group-heading-regexp
+                               (looking-at org-complex-heading-regexp)
+                               (string-match-p org-placeholder-ignored-group-heading-regexp
+                                               (match-string 4)))
+                      (org-end-of-subtree)
+                      (throw 'heading t))
+                    (oset sink items
+                          (cons (org-ql--add-markers (org-element-at-point))
+                                (oref sink items)))
+                    (end-of-line)))
+                (org-placeholder-sink-flush sink nil))))))
+      ;; FIXME: save outline visibility
+      (unwind-protect
+          (cl-etypecase root
+            (marker (save-current-buffer
+                      (org-with-point-at root
+                        (org-with-wide-buffer
+                         (org-fold-show-subtree)
+                         (org-placeholder-sink-initialize sink root)
+                         (run (org-outline-level)
+                              (save-excursion (org-end-of-subtree)))))))
+            (buffer (with-current-buffer root
+                      (org-with-wide-buffer
+                       (goto-char (point-min))
+                       (org-fold-show-all)
+                       (org-placeholder-sink-initialize sink root)
+                       (run 0
+                            nil)))))
+        (org-placeholder-sink-finalize sink)))))
+
+;;;; Agenda-based view implementation
+
+(defclass org-placeholder-agenda-view (org-placeholder-sink-class)
+  ((strings :initform nil :type list)
+   (buffer :initarg :buffer :type buffer)))
+
+(cl-defmethod org-placeholder-sink-initialize ((sink org-placeholder-agenda-view) root)
+  (oset sink strings nil)
+  (cl-etypecase root
+    (marker (progn
+              (org-fold-show-subtree)
+              (font-lock-ensure (point) (pos-eol))
+              (let ((title (propertize (org-get-heading t t t t)
+                                       'org-marker root)))
+                (with-current-buffer (oref sink buffer)
+                  (insert title "\n\n")))))
+    (buffer (progn
+              (goto-char (point-min))
+              (org-fold-show-all)
+              (let ((title (propertize (or (org-placeholder--find-keyword "title")
+                                           (buffer-name))
+                                       'org-marker (copy-marker (point-min)))))
+                (with-current-buffer (oref sink buffer)
+                  (insert title "\n\n")))))))
+
+(cl-defmethod org-placeholder-sink-start-section ((sink org-placeholder-agenda-view)
+                                                  heading
+                                                  &key marker level indirect)
+  (oset sink strings
+        (cons (propertize heading
+                          'org-marker marker
+                          'org-agenda-structural-header t
+                          'org-placeholder-outline-level level
+                          'org-placeholder-container (if indirect
+                                                         'indirect
+                                                       t))
+              (oref sink strings))))
+
+(cl-defmethod org-placeholder-sink-start-subsection ((sink org-placeholder-agenda-view)
+                                                     olp
+                                                     &key marker level indirect
+                                                     archivedp)
+  (oset sink strings
+        (cons (thread-first
+                (concat
+                 " " (propertize (format "(%s)" (org-no-properties
+                                                 (org-format-outline-path olp)))
+                                 'face
+                                 (if archivedp
+                                     'org-placeholder-archived-subgroup-face
+                                   'org-placeholder-subgroup-face)))
+                (propertize 'org-marker marker
+                            'org-agenda-structural-header t
+                            'org-placeholder-formatted-olp
+                            (org-no-properties (org-format-outline-path olp))
+                            'org-placeholder-outline-level level
+                            'org-placeholder-container
+                            (if indirect
+                                'indirect
+                              t)))
+              (oref sink strings))))
+
+(cl-defmethod org-placeholder-sink-emit-items ((sink org-placeholder-agenda-view)
+                                               items
+                                               &optional archivedp)
+  (require 'org-ql-view)
+  (with-current-buffer (oref sink buffer)
+    (let ((strings (nreverse (oref sink strings))))
+      (insert (thread-first
+                (append strings
+                        (pcase (oref sink source-type)
+                          (`simple
+                           (mapcar #'org-ql-view--format-element items))
+                          (`nested
+                           (if archivedp
+                               (list (propertize "  (Items in this archived group are not shown)"
+                                                 'face 'font-lock-comment-face))
+                             (mapcar #'org-ql-view--format-element items)))))
+                (string-join "\n"))
+              (if (or items strings)
+                  "\n"
+                ;; Avoid continuous empty lines.
+                ""))))
+  (oset sink strings nil))
+
+(cl-defmethod org-placeholder-sink-separator ((sink org-placeholder-agenda-view))
+  (oset sink strings
+        (cons "" (oref sink strings))))
+
+(cl-defmethod org-placeholder-sink-finalize ((_sink org-placeholder-agenda-view)))
 
 (defvar org-placeholder-view-name nil)
 
@@ -562,9 +810,11 @@ which is suitable for integration with embark package."
   (let ((inhibit-read-only t)
         (root (org-placeholder-bookmark-root
                (or org-placeholder-view-name
-                   (error "org-placeholder-view-name is not set")))))
+                   (error "org-placeholder-view-name is not set"))))
+        (sink (make-instance 'org-placeholder-agenda-view
+                             :buffer (current-buffer))))
     (erase-buffer)
-    (org-placeholder--insert-view root)
+    (org-placeholder-write-to-sink root sink)
     (org-agenda-finalize)
     (goto-char (point-min))
     (cond
@@ -622,151 +872,6 @@ which is suitable for integration with embark package."
 (defun org-placeholder--highlight-line ()
   (when (fboundp 'pulse-momentary-highlight-one-line)
     (pulse-momentary-highlight-one-line)))
-
-(defun org-placeholder--insert-view (root)
-  (require 'org-ql-view)
-  (let ((type (cl-etypecase root
-                (marker (org-with-point-at root
-                          (org-placeholder--subtree-type)))
-                (buffer (with-current-buffer root
-                          (org-with-wide-buffer
-                           (org-placeholder--buffer-type))))))
-        root-heading
-        items
-        strings
-        subgroup-archivedp
-        first-section)
-    (cl-labels
-        ((emit (&optional no-empty-line)
-           (if subgroup-archivedp
-               (push (propertize "  (Items in this archived group are not shown)"
-                                 'face 'font-lock-comment-face)
-                     strings)
-             (setq strings (append (thread-last
-                                     items
-                                     (seq-sort (or org-placeholder-sort-function
-                                                   #'ignore))
-                                     (mapcar #'org-ql-view--format-element))
-                                   strings)))
-           (if first-section
-               (setq first-section nil)
-             (unless no-empty-line
-               (push "" strings)))
-           (setq items nil))
-         (scan-subgroups (root-level target-level bound)
-           (while (re-search-forward org-complex-heading-regexp bound t)
-             (when (or org-placeholder-show-archived-entries-in-view
-                       (not (org-in-archived-heading-p)))
-               (let ((level (org-outline-level)))
-                 (cond
-                  ((< level target-level)
-                   (if-let* ((str (org-entry-get nil "PLACEHOLDER_LEVEL")))
-                       (scan-subgroups root-level
-                                       (+ level 1 (string-to-number str))
-                                       (save-excursion (org-end-of-subtree)))
-                     ;; Serialize items in the last subgroup.
-                     (emit)
-                     (setq subgroup-archivedp (and (member org-archive-tag (org-get-tags))
-                                                   t))
-                     (when-let* ((olp (seq-drop (org-get-outline-path t t)
-                                                (1+ root-level))))
-                       (push (thread-first
-                               (concat
-                                " " (propertize (format "(%s)" (org-no-properties
-                                                                (org-format-outline-path olp)))
-                                                'face
-                                                (if subgroup-archivedp
-                                                    'org-placeholder-archived-subgroup-face
-                                                  'org-placeholder-subgroup-face)))
-                               (propertize 'org-marker (point-marker)
-                                           'org-agenda-structural-header t
-                                           'org-placeholder-formatted-olp
-                                           (org-no-properties
-                                            (org-format-outline-path olp))
-                                           'org-placeholder-outline-level level
-                                           'org-placeholder-container
-                                           (or (= level (1- target-level))
-                                               'indirect)))
-                             strings))))
-                  ((= level target-level)
-                   (beginning-of-line)
-                   (push (org-ql--add-markers (org-element-headline-parser))
-                         items)
-                   (end-of-line))))))
-           (emit t))
-         (run (type root-level end-of-root)
-           (let ((regexp1 (org-placeholder--regexp-for-level (1+ root-level))))
-             (pcase-exhaustive type
-               (`nested
-                (while (re-search-forward regexp1 end-of-root t)
-                  (catch 'heading
-                    (let ((bound (save-excursion (org-end-of-subtree)))
-                          (target-level (+ root-level
-                                           2
-                                           (if-let* ((str (org-entry-get nil "PLACEHOLDER_LEVEL")))
-                                               (string-to-number str)
-                                             0))))
-                      (setq first-section t)
-                      (font-lock-ensure (point) (pos-eol))
-                      (let ((heading (org-get-heading t t t t)))
-                        (when (and org-placeholder-ignored-group-heading-regexp
-                                   heading
-                                   (string-match-p org-placeholder-ignored-group-heading-regexp
-                                                   heading))
-                          (org-end-of-subtree)
-                          (throw 'heading t))
-                        (push (propertize heading
-                                          'org-marker (point-marker)
-                                          'org-agenda-structural-header t
-                                          'org-placeholder-outline-level (1+ root-level)
-                                          'org-placeholder-container (or (= (1+ root-level)
-                                                                            (1- target-level))
-                                                                         'indirect))
-                              strings))
-                      (scan-subgroups root-level target-level bound))
-                    (push "" strings))))
-               (`simple
-                (while (re-search-forward regexp1 end-of-root t)
-                  (catch 'heading
-                    (beginning-of-line)
-                    (let ((el (org-element-headline-parser)))
-                      (when (and org-placeholder-ignored-group-heading-regexp
-                                 (string-match-p org-placeholder-ignored-group-heading-regexp
-                                                 (org-element-property :headline el)))
-                        (org-end-of-subtree)
-                        (throw 'heading t))
-                      (push (org-ql--add-markers el)
-                            items))
-                    (end-of-line)))
-                (setq strings (thread-last
-                                items
-                                (seq-sort (or org-placeholder-sort-function
-                                              #'ignore))
-                                (mapcar #'org-ql-view--format-element))))))))
-      ;; FIXME: save outline visibility
-      (cl-etypecase root
-        (marker (save-current-buffer
-                  (org-with-point-at root
-                    (org-with-wide-buffer
-                     (org-fold-show-subtree)
-                     (font-lock-ensure (point) (pos-eol))
-                     (setq root-heading (propertize (org-get-heading t t t t)
-                                                    'org-marker root))
-                     (run type
-                          (org-outline-level)
-                          (save-excursion (org-end-of-subtree)))))))
-        (buffer (with-current-buffer root
-                  (org-with-wide-buffer
-                   (goto-char (point-min))
-                   (org-fold-show-all)
-                   (setq root-heading (propertize (or (org-placeholder--find-keyword "title")
-                                                      (buffer-name))
-                                                  'org-marker (copy-marker (point-min))))
-                   (run type
-                        0
-                        nil))))))
-    (insert root-heading "\n\n")
-    (insert (string-join (nreverse strings) "\n"))))
 
 (defun org-placeholder-view-capture ()
   "Add an item to the group at point, or add a subgroup."
@@ -1082,6 +1187,165 @@ writing your own transformer.
 
 This should be matched against \\='org-placeholder-item category."
   (gethash item org-placeholder-marker-table))
+
+;;;; Exporting
+
+(defclass org-placeholder-json-exporter (org-placeholder-sink-class)
+  ((root-filename
+    :initarg :root-filename :initform "root.json" :type string)
+   (entries-filename
+    :initarg :entries-filename :initform "entries.jsonl" :type string)
+   (sections-filename
+    :initarg :sections-filename :initform "sections.jsonl" :type string)
+   (output-filename
+    :initarg :output-filename :type string)
+   (temporary-directory
+    :initform nil :type (or string null))
+   (root-olp :initform nil :type list)
+   (content-format
+    :initarg :content-format :initform gfm :type symbol
+    :documentation
+    "The format of the content. It is a symbol indicating the format or nil. gfm and org are supported.")))
+
+(defun org-placeholder--file-in-temp-dir (sink slot)
+  (file-name-concat (or (oref sink temporary-directory)
+                        (error "The temporary directory must not be null"))
+                    (slot-value sink slot)))
+
+(defun org-placeholder--append-jsonl-entry (sink slot object)
+  (declare (indent 2))
+  (with-temp-buffer
+    (insert (json-serialize (cl-remove-if #'null object :key #'cdr))
+            "\n")
+    (let ((filename (org-placeholder--file-in-temp-dir sink slot))
+          (coding-system-for-write 'utf-8-unix)
+          message-log-max)
+      (write-region (point-min) (point-max) filename t))))
+
+(cl-defmethod org-placeholder-sink-initialize ((sink org-placeholder-json-exporter)
+                                               root)
+  (let ((temp-dir (thread-first
+                    (format "mktemp -d -t org-placeholder-export-XXX")
+                    (shell-command-to-string)
+                    (string-trim))))
+    (condition-case _
+        (let ((root-data (append (cl-etypecase root
+                                   (marker
+                                    `((title . ,(org-entry-get nil "ITEM"))
+                                      (olp . ,(seq-into (org-get-outline-path t)
+                                                        'vector))
+                                      (tags . ,(seq-into (org-get-tags)
+                                                         'vector))
+                                      (states . ,(seq-into org-todo-keywords-1
+                                                           'vector))))
+                                   (buffer
+                                    `((title . ,(or (org-placeholder--find-keyword "title")
+                                                    (buffer-name)))
+                                      (tags . ,(seq-into org-file-tags
+                                                         'vector))
+                                      (filename . ,(buffer-file-name))
+                                      (states . ,(seq-into org-todo-keywords-1
+                                                           'vector)))))
+                                 (org-placeholder--json-encode-properties
+                                  (org-entry-properties nil 'standard)))))
+          (oset sink temporary-directory temp-dir)
+          (oset sink root-olp (alist-get 'olp root-data))
+          (with-temp-buffer
+            (insert (json-serialize root-data))
+            (let ((filename (org-placeholder--file-in-temp-dir sink 'root-filename))
+                  (coding-system-for-write 'utf-8-unix)
+                  message-log-max)
+              (write-region (point-min) (point-max) filename))))
+      (error (delete-directory temp-dir t)))))
+
+(cl-defmethod org-placeholder-sink-start-section ((sink org-placeholder-json-exporter)
+                                                  heading
+                                                  &key marker level indirect)
+  (org-placeholder--append-jsonl-entry sink 'sections-filename
+    (append `((olp . ,(vector heading))
+              (indirect . ,(or indirect :false))
+              (level . ,level))
+            (org-placeholder--exported-section-properties marker))))
+
+(cl-defmethod org-placeholder-sink-start-subsection ((sink org-placeholder-json-exporter)
+                                                     olp
+                                                     &key marker level indirect
+                                                     archivedp)
+  (org-placeholder--append-jsonl-entry sink 'sections-filename
+    (append `((olp . ,(apply #'vector olp))
+              (indirect . ,(or indirect :false))
+              (level . ,level)
+              (archived . ,(or archivedp :false)))
+            (org-placeholder--exported-section-properties marker))))
+
+(defun org-placeholder--exported-section-properties (marker))
+
+(cl-defmethod org-placeholder-sink-separator ((_ org-placeholder-json-exporter))
+  ;; noop, as there is no notion of separator in jsonl
+  )
+
+(cl-defmethod org-placeholder-sink-emit-items ((sink org-placeholder-json-exporter)
+                                               items
+                                               &optional archivedp)
+  (dolist (element items)
+    (let ((raw-title (org-element-property :title element)))
+      (org-placeholder--append-jsonl-entry sink 'entries-filename
+        (append (save-match-data
+                  (if (string-match org-link-bracket-re raw-title)
+                      `((title . ,(or (match-string 2 raw-title)
+                                      (match-string 1 raw-title)))
+                        (href . ,(match-string 1 raw-title)))
+                    `((title . ,raw-title))))
+                `((olp . ,(thread-first
+                            (org-with-point-at (org-element-property :org-hd-marker element)
+                              (org-get-outline-path nil t))
+                            (seq-drop (length (oref sink root-olp)))
+                            (seq-into 'vector)))))))))
+
+(cl-defmethod org-placeholder-sink-finalize ((sink org-placeholder-json-exporter))
+  ;; Write to the file
+  (unwind-protect
+      (let* ((filename (convert-standard-filename
+                        (expand-file-name (oref sink output-filename))))
+             (buffer-name "*org-placeholder-tar*"))
+        (when-let* ((buffer (get-buffer buffer-name)))
+          (kill-buffer buffer))
+        (with-current-buffer (generate-new-buffer buffer-name)
+          (unless (zerop (call-process "tar" nil t nil
+                                       "cvzf"
+                                       filename
+                                       "-C" (oref sink temporary-directory)
+                                       (oref sink root-filename)
+                                       (oref sink entries-filename)
+                                       (oref sink sections-filename)))
+            (display-buffer (current-buffer))
+            (error "Failed to create the tarball"))))
+    (delete-directory (oref sink temporary-directory) t)))
+
+(defun org-placeholder--json-encode-properties (alist)
+  (mapcar (lambda (cell)
+            (cons (intern (downcase (car cell)))
+                  (cdr cell)))
+          alist))
+
+;;;###autoload
+(defun org-placeholder-export (bookmark filename &optional force)
+  "Export BOOKMARK to a tarball of JSON-L files."
+  (interactive (list (org-placeholder-read-bookmark-name "Export a view: ")
+                     (read-file-name "Export to (*.tar.gz): ")
+                     current-prefix-arg))
+  (when (and (file-exists-p filename)
+             (not force))
+    (user-error "File %s already exists" filename))
+  (let* ((bookmark-name (if (stringp bookmark)
+                            bookmark
+                          (car bookmark)))
+         (exporter (make-instance 'org-placeholder-json-exporter
+                                  :output-filename filename)))
+    (org-placeholder-write-to-sink (or (org-placeholder-bookmark-root bookmark-name)
+                                       (error "bookmark-name is nil"))
+                                   exporter)
+    (message "Successfully exported to %s" filename)))
 
 (provide 'org-placeholder)
 ;;; org-placeholder.el ends here
