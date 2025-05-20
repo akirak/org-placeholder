@@ -538,17 +538,6 @@ which is suitable for integration with embark package."
 This method should be called in the output buffer."
   (oset sink items nil))
 
-(cl-defgeneric org-rooted-sink-start-section (sink
-                                                   heading
-                                                   &key marker level indirect)
-  (error "abstract method"))
-
-(cl-defgeneric org-rooted-sink-start-subsection (sink
-                                                      olp
-                                                      &key marker level indirect
-                                                      archivedp)
-  (error "abstract method"))
-
 (cl-defmethod org-rooted-sink-flush (sink
                                      &optional archivedp)
   (let ((items (thread-last
@@ -557,15 +546,6 @@ This method should be called in the output buffer."
                                #'ignore)))))
     (org-rooted-sink-emit-items sink items archivedp)
     (oset sink items nil)))
-
-(cl-defgeneric org-rooted-sink-emit-items (sink
-                                                items
-                                                &optional archivedp)
-  (error "abstract method"))
-
-(cl-defgeneric org-rooted-sink-finalize (sink)
-  "Finalize the sink and flash the result into the current buffer."
-  (error "abstract method"))
 
 (defun org-rooted-write-to-sink (root sink)
   ;; For `org-ql--add-markers'.
